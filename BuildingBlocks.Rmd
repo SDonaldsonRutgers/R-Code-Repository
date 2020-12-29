@@ -1,0 +1,689 @@
+---
+title: "Building Blocks of PERMA Beyond Self-Report Bias"
+author: "Scott I. Donaldson, Ph.D"
+date: "6/18/2020"
+output: html_document
+---
+#Data Management
+```{r Data Manipulation and Cleaning, echo=FALSE}
+#Upload packages
+library(haven)
+library(careless)
+library(tidyverse)
+library(psych)
+library(Hmisc)
+library(magrittr)
+library(pastecs)
+library(QuantPsyc)
+
+#Import from SPSS
+MTMM_Clean <- read_sav("MTMM.Clean.sav")
+View(MTMM_Clean)
+MTMM.ID <- MTMM_Clean %>% mutate(id = row_number())
+Demos <- MTMM.ID[, c(82:100, 165:189, 259:277, 347:371, 383)]
+
+#Remove careless responding
+data.frame(colnames(MTMM.ID)) ##Keep track of all scale items for EMP1(C) and EMP1(C)
+Final <- MTMM.ID[, c(11:81, 101:164, 190:258, 278:346, 383)]
+
+  ##Mahal Distance (Across Pairs)
+data.frame(colnames(Final))
+MD <- mahad(Final, flag = TRUE, confidence = 0.999) 
+filter(MD, flagged == TRUE)
+Final2 <- Final[-c(165), ]
+
+  ##Longstring Invariant Responding 
+data.frame(colnames(Final2))
+  ###EMP1 Lonstring
+EMP1.L <- Final2[ , c(136:204, 274)]
+longstring_EMP1 <- longstring(EMP1.L)
+longstring_EMP1 <- as.data.frame(longstring_EMP1)
+boxplot(longstring_EMP1)
+quantile(longstring_EMP1$longstring_EMP1)
+table(longstring_EMP1)
+  ###EMP1C Longstring
+EMP1C.L <- Final2[ , c(205:273)]
+longstring_EMP1C <- longstring(EMP1C.L)
+longstring_EMP1C <- as.data.frame(longstring_EMP1C)
+boxplot(longstring_EMP1C)
+quantile(longstring_EMP1C$longstring_EMP1C)
+table(longstring_EMP1C)
+
+#Clean up workspace
+rm(list = "EMP1.L", "EMP1C.L", "EMP1.L", "EMP1C.L",
+            "Final", "longstring_EMP1" , "longstring_EMP1C",
+          "longstring_EMP1" , "longstring_EMP1C", "MD",
+          "MTMM_Clean", "MTMM.ID")
+
+#Relational Data (Join the demos with ID variable)
+  ##We want to join the scale data with Final.pairs to demographic data from MTMM_Clean
+Final.Pairs2 <-  Final2 %>% left_join(Demos, by = "id")
+Final2 <- Final.Pairs2
+rm(Final.Pairs2)
+data.frame(colnames(Final2))
+
+```
+
+```{r Scaling PERMA+4 and SWLS for E1 + E2C}
+ScaleData <- Final2
+##EMP1 - PERMA+4 and SWB
+       ScaleData <- mutate(Final2,
+       PREL.Scale.E1 = (PREL_1_EMP1 + PREL_2_EMP1 + PREL_3_EMP1 +   
+                          PREL_4_EMP1)/4,
+       PE.Scale.E1 = (PE_1_EMP1 + PE_2_EMP1 + PE_3_EMP1)/3,
+       PMEAN.Scale.E1 = (PMEAN_1_EMP1 + PMEAN_2_EMP1 + PMEAN_3_EMP1)/3,
+       PACCOM.Scale.E1 = (PACCOM_1_EMP1 + PACCOM_2_EMP1 + PACCOM_3_EMP1)/3,
+       PEN.Scale.E1 = (PEN_1_EMP1 + PEN_2_EMP1 + PEN_3_EMP1)/3,
+       PECON.Scale.E1 = (PECON_1_EMP1 + PECON_2_EMP1 + PECON_3_EMP1)/3,
+       PMIND.Scale.E1 = (PMIND_1_EMP1 + PMIND_2_EMP1 + PMIND_3_EMP1)/3,
+       PHEALTH.Scale.E1 = (PPHealth_1_EMP1 + PPHealth_2_EMP1 + PPHealth_3_EMP1 +
+                            PPHealth_4_EMP1)/4,
+       PPWE.Scale.E1 = (PPWE_1_EMP1 + PPWE_2_EMP1 + PPWE_3_EMP1)/3,
+       PF.W.Scale.E1 = (PREL.Scale.E1 + PE.Scale.E1 + PMEAN.Scale.E1 +
+                          PACCOM.Scale.E1 + PEN.Scale.E1 + PECON.Scale.E1 +
+                           PMIND.Scale.E1 + PHEALTH.Scale.E1 + PPWE.Scale.E1)/9,
+       SWLS.E1 = (SWL_1_EMP1 + SWL_2_EMP1 +SWL_3_EMP1 + SWL_4_EMP1 + SWL_5_EMP1)/5,
+       
+#Add coworker 
+       PREL.Scale.E2C = (PREL_1_EMP2_C + PREL_2_EMP2_C + PREL_3_EMP2_C +   
+                          PREL_4_EMP2_C)/4,
+       PE.Scale.E2C = (PE_1_EMP2_C + PE_2_EMP2_C + PE_3_EMP2_C)/3,
+       PMEAN.Scale.E2C = (PMEAN_1_EMP2_C + PMEAN_2_EMP2_C + PMEAN_3_EMP2_C)/3,
+       PACCOM.Scale.E2C = (PACCOM_1_EMP2_C + PACCOM_2_EMP2_C + PACCOM_3_EMP2_C)/3,
+       PEN.Scale.E2C = (PEN_1_EMP2_C + PEN_2_EMP2_C + PACCOM_2_EMP2_C)/3,
+       PECON.Scale.E2C = (PECON_1_EMP2_C + PECON_2_EMP2_C + PECON_3_EMP2_C)/3,
+       PMIND.Scale.E2C = (PMIND_1__EMP2_C + PMIND_2_EMP2_C + PMIND_3_EMP2_C)/3,
+       PHEALTH.Scale.E2C = (PPHealth_1_EMP2_C + PPHealth_2_EMP2_C + PPHealth_3_EMP2_C +
+                            PPHealth_4_EMP2_C)/4,
+       PPWE.Scale.E2C = (PPWE_1_EMP2_C + PPWE_2_EMP2_C + PPWE_3_EMP2_C)/3,
+       PF.W.Scale.E2C = (PREL.Scale.E2C + PE.Scale.E2C + PMEAN.Scale.E2C +
+                            PACCOM.Scale.E2C + PEN.Scale.E2C + PECON.Scale.E2C +
+                            PMIND.Scale.E2C + PHEALTH.Scale.E2C + PPWE.Scale.E2C)/9,
+         SWLS.E2C = (SWL_1__EMP2_C + SWL_2__EMP2_C +SWL_3__EMP2_C + SWL_4__EMP2_C +       
+                            SWL_5__EMP2_C)/5
+        )
+```
+
+```{r Employee 1 Demos} 
+##Subset only Scale Scores and Demographics
+data.frame(colnames(ScaleData))
+TidyData <- ScaleData[, c(274:293, 363:384)]
+  
+TidyData$Ethnicity_EMP1_2[TidyData$Ethnicity_EMP1_2 %in% 1] <- 2
+TidyData$Ethnicity_EMP1_3[TidyData$Ethnicity_EMP1_3 %in% 1] <- 3
+TidyData$Ethnicity_EMP1_4[TidyData$Ethnicity_EMP1_4 %in% 1] <- 4
+TidyData$Ethnicity_EMP1_5[TidyData$Ethnicity_EMP1_5 %in% 1] <- 5
+TidyData$Ethnicity_EMP1_6[TidyData$Ethnicity_EMP1_6 %in% 1] <- 6
+TidyData$Ethnicity_EMP1_7[TidyData$Ethnicity_EMP1_7 %in% 1] <- 7 
+
+data.frame(colnames(TidyData))
+
+#Unite Ethnicity into ETH.NUll and ETH.E2
+TidyData <- unite(TidyData, ETH.E1, Ethnicity_EMP1_1, Ethnicity_EMP1_2, Ethnicity_EMP1_3, Ethnicity_EMP1_4, Ethnicity_EMP1_5, Ethnicity_EMP1_6, Ethnicity_EMP1_7, sep = "_", remove = FALSE, na.rm = TRUE)
+
+
+data.frame(colnames(TidyData))
+
+##Recode into factor variables for both employees (Etnicity, Degree, Industry, JobFunction, Income)
+TidyData$ETH.E1 <- as.factor(as.character(TidyData$ETH.E1))
+TidyData$Degree_EMP1 <- as.factor(as.character(TidyData$Degree_EMP1))
+TidyData$Industry_EMP1 <- as.factor(as.character(TidyData$Industry_EMP1))
+TidyData$JobFunction_EMP1 <- as.factor(as.character(TidyData$JobFunction_EMP1))
+TidyData$Income_EMP1 <- as.factor(as.character(TidyData$Income_EMP1))
+TidyData$Gender_EMP1 <- as.factor(as.character(TidyData$Gender_EMP1))
+
+
+
+TidyData <- TidyData %>% mutate(Degree.E1 = fct_recode(Degree_EMP1,
+                      "Associate" = "1",
+                    "Bachelor" = "2" ,
+                    "Master" = "3" ,
+                    "Doctorate" = "4" ,
+                    "Highschool or less" =  "5"
+                    ))
+
+TidyData <- TidyData %>% mutate(Industry.E1 = fct_recode(Industry_EMP1,
+                      "Banking" = "1",
+                      "Education" = "2" ,
+                      "Food & Beverage" = "3" ,
+                      "Government" = "4" ,
+                      "Healthcare" =  "5",
+                      "Manufacturing" =  "6",
+                      "Media & Entertainment" =  "7",
+                      "Retail, Wholesale, & Distribution" =  "8",
+                      "Software & IT" =  "9",
+                      "Nonprofit" =  "10",
+                      "Other" =  "11"
+                      ))
+
+TidyData <- TidyData %>% mutate(JobFunction.E1 = fct_recode(JobFunction_EMP1,
+                      "Accounting & Finance" = "1",
+                      "Administrative" = "2" ,
+                      "Arts & Design" = "3" ,
+                      "Education" = "4" ,
+                      "Engineering" =  "5",
+                      "IT" =  "6",
+                      "Marketing, Sales, & Business Dev." =  "7",
+                      "Management" =  "8",
+                      "Operations" =  "9",
+                      "Other" =  "10"
+                      ))
+
+TidyData <- TidyData %>% mutate(Income.E1 = fct_recode(Income_EMP1,
+                      "Less than 25k" = "1",
+                      "25-49k" = "2" ,
+                      "50-75k" = "3" ,
+                      "75-99k" = "4" ,
+                      "100-150k" =  "5",
+                      "150+" ="6"
+                      ))
+
+data.frame(colnames(TidyData))
+
+#####
+Employee1.Demos <- TidyData[, c(1, 2, 11, 12, 44:47)]
+
+Employee1.Demos <-Employee1.Demos %>% mutate(Eth.Final.E1 = fct_recode(ETH.E1,
+                      "Multiracial" = "1_2_3_4_5_6_NA",
+                      "Multiracial" = "NA_NA_3_NA_NA_6_NA" ,
+                      "Multiracial" = "NA_NA_NA_4_NA_6_NA",
+                      "Multiracial" =  "NA_NA_NA_NA_5_6_NA",
+                      "Multiracial" = "1_NA_3_NA_5_6_NA",
+                      "Multiracial" = "1_NA_NA_NA_5_NA_NA",
+                      "Asian" = "NA_NA_3_NA_NA_NA_NA",
+                      "Hispanic" = "NA_NA_NA_NA_5_NA_NA" ,
+                      "White" = "NA_NA_NA_NA_NA_6_NA",
+                      "Multiracial" = "NA_NA_NA_NA_NA_NA_7",
+                      "Black" = "1_NA_NA_NA_NA_NA_NA",
+                      "NHOPI" = "NA_NA_NA_4_NA_NA_NA",
+                      "ANAI" = "NA_2_NA_NA_NA_NA_NA"))
+
+Employee1.Demos <-Employee1.Demos %>% mutate(Degree.Final = fct_recode(Degree.E1,
+                      "Associate" = "1",
+                    "Bachelor" = "2" ,
+                    "Master" = "3" ,
+                    "Doctorate" = "4" ,
+                    "Highschool or less" =  "5"
+                    ))
+Employee1.Demos <-Employee1.Demos %>% mutate(Gender.Final = fct_recode(Gender_EMP1,
+                    "Male" = "1",
+                    "Female" = "2" ,
+                    "Other" = "3"
+                    ))
+
+Employee1.Demos <-Employee1.Demos %>% mutate(Industry.Final = fct_recode(Industry.E1,
+                      "Banking" = "1",
+                      "Education" = "2" ,
+                      "Food & Beverage" = "3" ,
+                      "Government" = "4" ,
+                      "Healthcare" =  "5",
+                      "Manufacturing" =  "6",
+                      "Media & Entertainment" =  "7",
+                      "Retail, Wholesale, & Distribution" =  "8",
+                      "Software & IT" =  "9",
+                      "Nonprofit" =  "10",
+                      "Other" =  "11"
+                      ))
+
+
+Employee1.Demos <-Employee1.Demos %>% mutate(JobFunction.Final = fct_recode(JobFunction.E1,
+                      "Accounting & Finance" = "1",
+                      "Administrative" = "2" ,
+                      "Arts & Design" = "3" ,
+                      "Education" = "4" ,
+                      "Engineering" =  "5",
+                      "IT" =  "6",
+                      "Marketing, Sales, & Business Dev." =  "7",
+                      "Operations" =  "8",
+                      "Management" =  "12",
+                      "Other" =  "11"
+                      ))
+
+Employee1.Demos <-Employee1.Demos %>% mutate(Income.Final = fct_recode(Income.E1,
+                      "Less than 25k" = "1",
+                      "25-49k" = "3" ,
+                      "50-75k" = "4" ,
+                      "75-99k" = "5" ,
+                      "100-150k" =  "6",
+                      "150+" ="7"
+                      ))
+
+data.frame(colnames(Employee1.Demos))
+Employee1.Demos <- Employee1.Demos[, c(3, 9:14)]
+```
+```{r Employee 2 Demos}
+data.frame(colnames(ScaleData))
+TidyData.E2 <- ScaleData[, c( 319:325, 327, 328, 330, 332, 334, 337)]
+
+TidyData.E2$Ethnicity_EMP2_2[TidyData$Ethnicity_EMP2_2 %in% 1] <- 2
+TidyData.E2$Ethnicity_EMP2_3[TidyData$Ethnicity_EMP2_3 %in% 1] <- 3
+TidyData.E2$Ethnicity_EMP2_4[TidyData$Ethnicity_EMP2_4 %in% 1] <- 4
+TidyData.E2$Ethnicity_EMP2_5[TidyData$Ethnicity_EMP2_5 %in% 1] <- 5
+TidyData.E2$Ethnicity_EMP2_6[TidyData$Ethnicity_EMP2_6 %in% 1] <- 6
+TidyData.E2$Ethnicity_EMP2_7[TidyData$Ethnicity_EMP2_7 %in% 1] <- 7 
+
+data.frame(colnames(TidyData))
+attach(TidyData.E2)
+#Unite Ethnicity into ETH.NUll and ETH.E2
+TidyData.E2 <- unite(TidyData.E2, ETH.E2, Ethnicity_EMP2_1, Ethnicity_EMP2_2, Ethnicity_EMP2_3, Ethnicity_EMP2_4, Ethnicity_EMP2_5, Ethnicity_EMP2_6, Ethnicity_EMP2_7, sep = "_", remove = FALSE, na.rm = TRUE)
+
+
+
+##Recode into factor variables for both employees (Etnicity, Degree, Industry, JobFunction, Income)
+TidyData.E2$ETH.E2 <- as.factor(as.character(TidyData.E2$ETH.E2))
+TidyData.E2$Degree_EMP2 <- as.factor(as.character(TidyData.E2$Degree_EMP2))
+TidyData.E2$Industry_EMP2 <- as.factor(as.character(TidyData.E2$Industry_EMP2))
+TidyData.E2$JobFunction_EMP2 <- as.factor(as.character(TidyData.E2$JobFunction_EMP2))
+TidyData.E2$Income_EMP2 <- as.factor(as.character(TidyData.E2$Income_EMP2))
+TidyData.E2$Gender_EMP2 <- as.factor(as.character(TidyData.E2$Gender_EMP2))
+TidyData.E2$Age_EMP2 <- as.numeric(as.character(TidyData.E2$Age_EMP2))
+
+
+TidyData.E2 <- TidyData.E2 %>% mutate(Degree.E2 = fct_recode(Degree_EMP2,
+                      "Associate" = "1",
+                    "Bachelor" = "2" ,
+                    "Master" = "3" ,
+                    "Doctorate" = "4" ,
+                    "Highschool or less" =  "5"
+                    ))
+
+TidyData.E2 <- TidyData.E2 %>% mutate(Industry.E2 = fct_recode(Industry_EMP2,
+                      "Banking" = "1",
+                      "Education" = "2" ,
+                      "Food & Beverage" = "3" ,
+                      "Government" = "4" ,
+                      "Healthcare" =  "5",
+                      "Manufacturing" =  "6",
+                      "Media & Entertainment" =  "7",
+                      "Retail, Wholesale, & Distribution" =  "8",
+                      "Software & IT" =  "9",
+                      "Nonprofit" =  "10",
+                      "Other" =  "11"
+                      ))
+
+TidyData.E2 <- TidyData.E2 %>% mutate(JobFunction.E2 = fct_recode(JobFunction_EMP2,
+                      "Accounting & Finance" = "1",
+                      "Administrative" = "2" ,
+                      "Arts & Design" = "3" ,
+                      "Education" = "4" ,
+                      "Engineering" =  "5",
+                      "IT" =  "6",
+                      "Marketing, Sales, & Business Dev." =  "7",
+                      "Management" =  "12",
+                      "Operations" =  "8",
+                      "Other" =  "11"
+                      ))
+
+TidyData.E2 <- TidyData.E2 %>% mutate(Income.E2 = fct_recode(Income_EMP2,
+                      "Less than 25k" = "1",
+                      "25-49k" = "3" ,
+                      "50-75k" = "4" ,
+                      "75-99k" = "5" ,
+                      "100-150k" =  "6",
+                      "150+" ="7"
+                      ))
+
+data.frame(colnames(TidyData.E2))
+
+#####
+Employee2.Demos <- TidyData.E2[, c(1, 9, 10, 15:18)]
+
+Employee2.Demos <-Employee2.Demos %>% mutate(Eth.Final.E2 = fct_recode(ETH.E2,
+                      "Multiracial" = "1_1_1_1_1_1_NA",
+                      "Multiracial" = "1_NA_1_NA_1_1_NA" ,
+                      "Multiracial" = "1_NA_NA_NA_1_NA_NA",
+                      "Black"       = "1_NA_NA_NA_NA_NA_NA",
+                      "AIAN" =  "NA_1_NA_NA_NA_NA_NA",
+                      "Multiracial" = "NA_NA_1_NA_NA_1_NA",
+                      "Asian" = "NA_NA_1_NA_NA_NA_NA",
+                      "NHPI" = "NA_NA_NA_1_NA_NA_NA",
+                      "Multiracial" = "NA_NA_NA_NA_1_1_NA",
+                      "Hispanic" = "NA_NA_NA_NA_1_NA_NA" ,
+                      "White" = "NA_NA_NA_NA_NA_1_NA"
+                      ))
+                     
+Employee2.Demos <-Employee2.Demos %>% mutate(Degree.Final = fct_recode(Degree.E2,
+                      "Associate" = "1",
+                    "Bachelor" = "2" ,
+                    "Master" = "3" ,
+                    "Doctorate" = "4" ,
+                    "Highschool or less" =  "5"
+                    ))
+Employee2.Demos <-Employee2.Demos %>% mutate(Gender.Final = fct_recode(Gender_EMP2,
+                    "Male" = "1",
+                    "Female" = "2" ,
+                    "Other" = "3"
+                    ))
+
+Employee2.Demos <-Employee2.Demos %>% mutate(Industry.Final = fct_recode(Industry.E2,
+                      "Banking" = "1",
+                      "Education" = "2" ,
+                      "Food & Beverage" = "3" ,
+                      "Government" = "4" ,
+                      "Healthcare" =  "5",
+                      "Manufacturing" =  "6",
+                      "Media & Entertainment" =  "7",
+                      "Retail, Wholesale, & Distribution" =  "8",
+                      "Software & IT" =  "9",
+                      "Nonprofit" =  "10",
+                      "Other" =  "11"
+                      ))
+
+
+Employee2.Demos <-Employee2.Demos %>% mutate(JobFunction.Final = fct_recode(JobFunction.E2,
+                      "Accounting & Finance" = "1",
+                      "Administrative" = "2" ,
+                      "Arts & Design" = "3" ,
+                      "Education" = "4" ,
+                      "Engineering" =  "5",
+                      "IT" =  "6",
+                      "Marketing, Sales, & Business Dev." =  "7",
+                      "Operations" =  "8",
+                      "Management" =  "12",
+                      "Other" =  "11"
+                      ))
+
+Employee2.Demos <-Employee2.Demos %>% mutate(Income.Final = fct_recode(Income.E2,
+                      "Less than 25k" = "1",
+                      "25-49k" = "3" ,
+                      "50-75k" = "4" ,
+                      "75-99k" = "5" ,
+                      "100-150k" =  "6",
+                      "150+" ="7"
+                      ))
+
+data.frame(colnames(Employee2.Demos))
+Employee2.Demos <- Employee2.Demos[, c(2,8:13)]
+```
+
+```{r Master DATASET - Merge Demographics and Scale Data, echo=FALSE}
+#Create dataset for PERMA(4) and SWLS
+data.frame(colnames(ScaleData))
+Scale.Final <- ScaleData[, c(363:384)]
+Employee1.Scales <- Scale.Final
+
+###Score PERMA and PF Aggregated Scales                   
+attach(Scale.Final)
+Employee1.Scales <- mutate(Employee1.Scales,
+                PERMA.Self = c(PE.Scale.E1 + PREL.Scale.E1 + PEN.Scale.E1 +
+                              PMEAN.Scale.E1 + PACCOM.Scale.E1)/5,
+                PF.Self =    c(PE.Scale.E1 + PREL.Scale.E1 + PEN.Scale.E1 +
+                              PMEAN.Scale.E1 + PACCOM.Scale.E1
+                              + PMIND.Scale.E1 + PECON.Scale.E1 + PHEALTH.Scale.E1 
+                              + PPWE.Scale.E1)/9,
+                PERMA.C = c(PE.Scale.E2C + PREL.Scale.E2C + PEN.Scale.E2C + 
+                              PMEAN.Scale.E2C + PACCOM.Scale.E2C)/5,
+                PF.C = c(PE.Scale.E2C + PREL.Scale.E2C + PEN.Scale.E2C + 
+                              PMEAN.Scale.E2C + PACCOM.Scale.E2C + 
+                              PMIND.Scale.E2C + PECON.Scale.E2C + PHEALTH.Scale.E2C
+                              + PPWE.Scale.E2C)/9
+                )
+
+
+##Merge Master.Scale andEmployee1.Demos into THEMASTER
+Employee1.Demos$ID.Final <- seq.int(nrow(Employee1.Demos))
+Employee1.Scales$ID.Final <- seq.int(nrow(Employee1.Scales))
+THE.MASTER <- left_join(Employee1.Scales, Employee1.Demos, by = "ID.Final")
+
+rm(TidyData, ScaleData, Scale.Final, Final2, Employee1.Scales, Employee1.Demos, Demos)
+```
+
+#Statistics 
+```{r Method Section}
+#Age
+mean(THE.MASTER$Age_EMP1, na.rm = TRUE)
+sd(THE.MASTER$Age_EMP1, na.rm = TRUE)
+
+#Gender
+freqdist::freqdist(THE.MASTER$Gender.Final)
+
+#Degree
+freqdist::freqdist(THE.MASTER$Degree.Final)
+
+#Ethnicity
+freqdist::freqdist(THE.MASTER$Eth.Final.E1)
+
+#Industry
+freqdist::freqdist(THE.MASTER$Industry.Final)
+
+#Income
+freqdist::freqdist(THE.MASTER$Income.Final)
+
+```
+
+```{r Table 1 - Summary and Convergence Matrix for PERMA, PF, and SWLS}
+The.Master.matrix <- as.matrix(THE.MASTER)
+data.frame(colnames(The.Master.matrix))
+
+#Means and SDs for all variables
+sapply(THE.MASTER[, c(1:26)], mean, na.rm=TRUE)
+sapply(THE.MASTER[, c(1:26)], sd, na.rm=TRUE)
+
+##Convergence of PERMA and SWB
+rcorr(The.Master.matrix[, c(1, 12)], type = "pearson") #PREL
+rcorr(The.Master.matrix[, c(2, 13)], type = "pearson") #PE
+rcorr(The.Master.matrix[, c(3, 14)], type = "pearson") #PMEAN
+rcorr(The.Master.matrix[, c(4, 15)], type = "pearson") #PACCOM
+rcorr(The.Master.matrix[, c(5, 16)], type = "pearson") #PEN
+rcorr(The.Master.matrix[, c(6, 17)], type = "pearson") #PECON
+rcorr(The.Master.matrix[, c(7, 18)], type = "pearson") #PMIND
+rcorr(The.Master.matrix[, c(8, 19)], type = "pearson") #PHEALTH
+rcorr(The.Master.matrix[, c(9, 20)], type = "pearson") #PPWE
+rcorr(The.Master.matrix[, c(10, 21)], type = "pearson") #PF
+rcorr(The.Master.matrix[, c(11, 22)], type = "pearson") #SWB
+rcorr(The.Master.matrix[, c(11, 22, 23, 25)], type = "pearson") 
+
+```
+
+```{r Table 2 - PERMA, PF, and  Self and Collateral SWB}
+
+##Convergence between PERMA self reports and SWB self and collateral
+The.SWB.matrix <- as.matrix(THE.MASTER[, c(1:11, 22, 23, 24)])
+rcorr(The.SWB.matrix, type = "pearson") 
+```
+
+```{r Constrast Codes for Regression Tables}
+##Create dummy variables for gender, income, and age
+  ###Gender
+contrasts(THE.MASTER$Gender.Final) <- contr.treatment(2, base = 2)
+Male.vs.Female <- c(1, 0)
+contrasts(THE.MASTER$Gender.Final) <- cbind(Male.vs.Female)
+  ###Income
+contrasts(THE.MASTER$Income.Final) <- contr.treatment(5, base = 2)
+MLess25k.vs.50_75k <- c(1, 0, 0, 0, 0)
+M75_99k.vs.50_75k <- c(0, 0, 1, 0, 0)
+M100_150k.vs.50_75k <- c(0, 0, 0, 1, 0)
+M150k.vs.25_50k <- c(0, 0, 0, 0, 1)
+contrasts(THE.MASTER$Income.Final) <- cbind(MLess25k.vs.50_75k, M75_99k.vs.50_75k,
+                                            M100_150k.vs.50_75k, M150k.vs.25_50k)
+```
+
+```{r Table 3 - Regression for S-PERMA Predicting SWB}
+#SWB Self-Reports
+attach(THE.MASTER)
+##Model 1 
+Model1 <- lm(SWLS.E1 ~ PERMA.Self + Gender.Final + Age_EMP1 + Income.Final)
+summary(Model1)
+confint.lm(Model1)
+  ##Assumption set
+standardized <- rstudent(Model1) #Standardized residuals
+Fitted <- scale(Model1$fitted.values) #Predicted scores
+  ##Normality
+hist(standardized)
+  ##Linearity
+qqnorm(standardized)
+  ##Homogeniety and homoscedascitiy
+plot(Fitted, standardized)
+
+##Model 2
+Model2 <- lm(SWLS.E2C ~ PERMA.Self + Gender.Final + Age_EMP1 + Income.Final)
+summary(Model2)
+confint.lm(Model2)
+
+```
+
+```{r Table 4 - Regression for S-PF Predicting SWB}
+##Model 1 
+Model3 <- lm(SWLS.E1 ~ PF.W.Scale.E1 + Gender.Final + Age_EMP1 + Income.Final)
+summary(Model3)
+confint.lm(Model3)
+  ##Assumption set
+standardized <- rstudent(Model1) #Standardized residuals
+Fitted <- scale(Model1$fitted.values) #Predicted scores
+  ##Normality
+hist(standardized)
+  ##Linearity
+qqnorm(standardized)
+  ##Homogeniety and homoscedascitiy
+plot(Fitted, standardized)
+
+##Model 2
+Model4 <- lm(SWLS.E2C ~ PF.W.Scale.E1 + Gender.Final + Age_EMP1 + Income.Final)
+summary(Model4)
+confint.lm(Model4)
+  
+```
+
+```{r Table 5 - Regression for Elements of S-PERMA and S-PF Predicting SWB}
+##Model 5 
+Model5 <- lm(SWLS.E1 ~ PE.Scale.E1 + PEN.Scale.E1 + PREL.Scale.E1 + PMEAN.Scale.E1 +
+             PACCOM.Scale.E1 + PMIND.Scale.E1 + PECON.Scale.E1 + PHEALTH.Scale.E1 +
+               PPWE.Scale.E1 + Gender.Final + Age_EMP1 + Income.Final)
+summary(Model5)
+confint.lm(Model5)
+  
+
+##Assumption set
+standardized <- rstudent(Model1) #Standardized residuals
+Fitted <- scale(Model1$fitted.values) #Predicted scores
+  ##Normality
+hist(standardized)
+  ##Linearity
+qqnorm(standardized)
+  ##Homogeniety and homoscedascitiy
+plot(Fitted, standardized)
+
+
+##Model 6
+Model6 <- lm(SWLS.E2C ~ PE.Scale.E1 + PEN.Scale.E1 + PREL.Scale.E1 + PMEAN.Scale.E1 +
+             PACCOM.Scale.E1 + PMIND.Scale.E1 + PECON.Scale.E1 + PHEALTH.Scale.E1 +
+             PPWE.Scale.E1 + Gender.Final + Age_EMP1 + Income.Final)
+summary(Model6)
+confint.lm(Model6)
+  
+```
+
+```{r Table 6 - Regression for C-PERMA Predicting SWB}
+#SWB Self-Reports
+attach(THE.MASTER)
+##Model 7 
+Model7 <- lm(SWLS.E1 ~ PERMA.C + Gender.Final + Age_EMP1 + Income.Final)
+summary(Model7)
+confint.lm(Model7)
+  ##Assumption set
+standardized <- rstudent(Model7) #Standardized residuals
+Fitted <- scale(Model7$fitted.values) #Predicted scores
+  ##Normality
+hist(standardized)
+  ##Linearity
+qqnorm(standardized)
+  ##Homogeniety and homoscedascitiy
+plot(Fitted, standardized)
+
+##Model 8
+Model8 <- lm(SWLS.E2C ~ PERMA.C + Gender.Final + Age_EMP1 + Income.Final)
+summary(Model8)
+confint.lm(Model8)
+
+
+```
+
+```{r Table 7 - Regression for C-PF Predicting SWB}
+##Model 9
+attach(THE.MASTER)
+Model9 <- lm(SWLS.E1 ~ PF.W.Scale.E2C + Gender.Final + Age_EMP1 + Income.Final)
+summary(Model9)
+confint.lm(Model9)
+  ##Assumption set
+standardized <- rstudent(Model9) #Standardized residuals
+Fitted <- scale(Model9$fitted.values) #Predicted scores
+  ##Normality
+hist(standardized)
+  ##Linearity
+qqnorm(standardized)
+  ##Homogeniety and homoscedascitiy
+plot(Fitted, standardized)
+
+##Model 10
+Model10 <- lm(SWLS.E2C ~ PF.W.Scale.E2C + Gender.Final + Age_EMP1 + Income.Final)
+summary(Model10)
+confint.lm(Model10)
+  
+```
+
+```{r Table 8 - Regression for Elements of C-PERMA and S-PF Predicting SWB}
+##Model 5 
+Model11 <- lm(SWLS.E1 ~ PE.Scale.E2C + PEN.Scale.E2C + PREL.Scale.E2C + PMEAN.Scale.E2C +
+             PACCOM.Scale.E2C + PMIND.Scale.E2C + PECON.Scale.E2C + PHEALTH.Scale.E2C +
+               PPWE.Scale.E2C + Gender.Final + Age_EMP1 + Income.Final)
+summary(Model11)
+confint.lm(Model11)
+  
+
+##Assumption set
+standardized <- rstudent(Model11) #Standardized residuals
+Fitted <- scale(Model11$fitted.values) #Predicted scores
+  ##Normality
+hist(standardized)
+  ##Linearity
+qqnorm(standardized)
+  ##Homogeniety and homoscedascitiy
+plot(Fitted, standardized)
+
+
+##Model 12
+Model12 <-  (SWLS.E2C ~ PE.Scale.E2C + PEN.Scale.E2C + PREL.Scale.E2C + PMEAN.Scale.E2C +
+             PACCOM.Scale.E2C + PMIND.Scale.E2C + PECON.Scale.E2C + PHEALTH.Scale.E2C +
+               PPWE.Scale.E2C + Gender.Final + Age_EMP1 + Income.Final)
+summary(Model12)
+confint.lm(Model12)
+  
+```
+
+```{r Hypothesis 7 PF Above and Beyond PERMA}
+anova(Model1, Model3) #Self and self
+anova(Model2, Model4) #Self and Collateral
+
+```
+
+```{r Method Section Revised to Include}
+#Age
+attach(Employee2.Demos)
+mean(Employee2.Demos$Age_EMP2, na.rm = TRUE)
+sd(Employee2.Demos$Age_EMP2, na.rm = TRUE)
+
+#Gender
+freqdist::freqdist(Employee2.Demos$Gender.Final)
+
+#Degree
+freqdist::freqdist(Employee2.Demos$Degree.Final)
+
+#Ethnicity
+freqdist::freqdist(Employee2.Demos$Eth.Final.E2)
+
+#Industry
+freqdist::freqdist(Employee2.Demos$Industry.Final)
+
+#Income
+freqdist::freqdist(Employee2.Demos$Income.Final)
+
+
+```
+
+
+
+
+
+
+
+

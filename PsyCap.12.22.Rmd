@@ -1,0 +1,1380 @@
+---
+title: "PsyCap MTMM"
+author: "Scott I. Donaldson, PhD"
+date: "12/22/2020"
+output: html_document
+---
+
+#Data Manipulation and Management
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+#Setup
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+
+#Upload packages
+library(haven)
+library(careless)
+library(tidyverse)
+library(psych)
+library(Hmisc)
+library(magrittr)
+library(pastecs)
+library(QuantPsyc)
+library(ppcor)
+library(GPArotation)
+library(gmodels)
+
+#Import from SPSS
+MTMM_Clean <- read_sav("MTMM.Clean.sav")
+MTMM.ID <- MTMM_Clean %>% mutate(id = row_number())
+Demos <- MTMM.ID[, c(82:100, 165:189, 259:277, 347:371, 383)]
+
+#Remove careless responding
+##Keep track of all scale items for EMP1(C) and EMP1(C)
+Final <- MTMM.ID[, c(11:81, 101:164, 190:258, 278:346, 383)]
+
+##Mahal Distance (Across Pairs)
+data.frame(colnames(Final))
+MD <- mahad(Final, flag = TRUE, confidence = 0.999) 
+filter(MD, flagged == TRUE)
+Final2 <- Final[-c(165), ]
+
+##Longstring Invariant Responding 
+###EMP1 Lonstring
+EMP1.L <- Final2[ , c(136:204, 274)]
+longstring_EMP1 <- longstring(EMP1.L)
+longstring_EMP1 <- as.data.frame(longstring_EMP1)
+boxplot(longstring_EMP1)
+quantile(longstring_EMP1$longstring_EMP1)
+table(longstring_EMP1)
+###EMP1C Longstring
+EMP1C.L <- Final2[ , c(205:273)]
+longstring_EMP1C <- longstring(EMP1C.L)
+longstring_EMP1C <- as.data.frame(longstring_EMP1C)
+boxplot(longstring_EMP1C)
+quantile(longstring_EMP1C$longstring_EMP1C)
+table(longstring_EMP1C)
+
+#Clean up workspace
+rm(list = "EMP1.L", "EMP1C.L", "EMP1.L", "EMP1C.L",
+            "Final", "longstring_EMP1" , "longstring_EMP1C",
+          "longstring_EMP1" , "longstring_EMP1C", "MD",
+          "MTMM_Clean", "MTMM.ID")
+
+#Relational Data (Join the demos with ID variable)
+##We want to join the scale data with Final.pairs to demographic data from MTMM_Clean
+Final.Pairs2 <-  Final2 %>% left_join(Demos, by = "id")
+Final2 <- Final.Pairs2
+rm(Final.Pairs2)
+ 
+ScaleData <- Final2
+
+##E1
+       ScaleData <- mutate(ScaleData,
+       PREL.Scale.E1    = (PREL_1_EMP1 + PREL_2_EMP1 + PREL_3_EMP1 +
+                           PREL_4_EMP1)/4,
+       PE.Scale.E1      = (PE_1_EMP1 + PE_2_EMP1 + PE_3_EMP1)/3,
+       PMEAN.Scale.E1   = (PMEAN_1_EMP1 + PMEAN_2_EMP1 + PMEAN_3_EMP1)/3,
+       PACCOM.Scale.E1  = (PACCOM_1_EMP1 + PACCOM_2_EMP1 + PACCOM_3_EMP1)/3,
+       PEN.Scale.E1     = (PEN_1_EMP1 + PEN_2_EMP1 + PEN_3_EMP1)/3,
+       PECON.Scale.E1   = (PECON_1_EMP1 + PECON_2_EMP1 + PECON_3_EMP1)/3,
+       PMIND.Scale.E1   = (PMIND_1_EMP1 + PMIND_2_EMP1 + PMIND_3_EMP1)/3,
+       PHEALTH.Scale.E1 = (PPHealth_1_EMP1 + PPHealth_2_EMP1 + PPHealth_3_EMP1 +
+                           PPHealth_4_EMP1)/4,
+       PPWE.Scale.E1    = (PPWE_1_EMP1 + PPWE_2_EMP1 + PPWE_3_EMP1)/3,
+       PERMA.E1         = (PREL.Scale.E1 + PE.Scale.E1 + PMEAN.Scale.E1 +
+                           PACCOM.Scale.E1 + PEN.Scale.E1)/5,
+       PF.W.Scale.E1    = (PREL.Scale.E1 + PE.Scale.E1 + PMEAN.Scale.E1 +
+                           PACCOM.Scale.E1 + PEN.Scale.E1 + PECON.Scale.E1 +
+                           PMIND.Scale.E1 + PHEALTH.Scale.E1 + PPWE.Scale.E1)/9,
+       
+#E2C 
+       PREL.Scale.E2C   = (PREL_1_EMP1C + PREL_2_EMP1C + PREL_3_EMP1C +   
+                           PREL_4_EMP1C)/4,
+       PE.Scale.E2C     = (PE_1_EMP2_C + PE_2_EMP2_C + PE_3_EMP2_C)/3,
+       PMEAN.Scale.E2C  = (PMEAN_1_EMP2_C + PMEAN_2_EMP2_C + PMEAN_3_EMP2_C)/3,
+       PACCOM.Scale.E2C = (PACCOM_1_EMP2_C + PACCOM_2_EMP2_C + PACCOM_3_EMP2_C)/3,
+       PEN.Scale.E2C    = (PEN_1_EMP2_C + PEN_2_EMP2_C + PEN_3_EMP2_C)/3,
+       PECON.Scale.E2C  = (PECON_1_EMP2_C + PECON_2_EMP2_C + PECON_3_EMP2_C)/3,
+       PMIND.Scale.E2C  = (PMIND_1__EMP2_C + PMIND_2_EMP2_C + PMIND_3_EMP2_C)/3,
+       PHEALTH.Scale.E2C= (PPHealth_1_EMP2_C + PPHealth_2_EMP2_C + PPHealth_3_EMP2_C +
+                           PPHealth_4_EMP2_C)/4,
+       PPWE.Scale.E2C   = (PPWE_1_EMP2_C + PPWE_2_EMP2_C + PPWE_3_EMP2_C)/3,
+       PERMA.E2C        = (PREL.Scale.E2C + PE.Scale.E2C + PMEAN.Scale.E2C +
+                           PACCOM.Scale.E2C + PEN.Scale.E2C)/5,
+       PF.W.Scale.E2C   = (PREL.Scale.E2C + PE.Scale.E2C + PMEAN.Scale.E2C +
+                            PACCOM.Scale.E2C + PEN.Scale.E2C + PECON.Scale.E2C +
+                            PMIND.Scale.E2C + PHEALTH.Scale.E2C + PPWE.Scale.E2C)/9)
+
+#Scoring PERMA and PF-W for E2 and E1C
+##EMP1
+       ScaleData <- mutate(ScaleData,
+       PREL.Scale.E2    = (PREL_1_EMP2 + PREL_2_EMP2 + PREL_3_EMP2 +   
+                           PREL_4_EMP2)/4,
+       PE.Scale.E2      = (PE_1_EMP2 + PE_2_EMP2 + PE_3_EMP2)/3,
+       PMEAN.Scale.E2   = (PMEAN_1_EMP2 + PMEAN_2_EMP2 + PMEAN_3_EMP2)/3,
+       PACCOM.Scale.E2  = (PACCOM_1_EMP2 + PACCOM_2_EMP2 + PACCOM_3_EMP2)/3,
+       PEN.Scale.E2     = (PEN_1_EMP2 + PEN_2_EMP2 + PEN_3_EMP2)/3,
+       PECON.Scale.E2   = (PECON_1_EMP2 + PECON_2_EMP2 + PECON_3_EMP2)/3,
+       PMIND.Scale.E2   = (PMIND_1_EMP2 + PMIND_2_EMP2 + PMIND_3_EMP2)/3,
+       PHEALTH.Scale.E2 = (PPHealth_1_EMP2 + PPHealth_2_EMP2 + PPHealth_3_EMP2 +
+                           PPHealth_4_EMP2)/4,
+       PPWE.Scale.E2    = (PPWE_1_EMP2 + PPWE_2_EMP2 + PPWE_3_EMP2)/3,
+       PERMA.E2         = (PREL.Scale.E2 + PE.Scale.E2 + PMEAN.Scale.E2 +
+                           PACCOM.Scale.E2 + PEN.Scale.E2)/5,
+       PF.W.Scale.E2    = (PREL.Scale.E2 + PE.Scale.E2 + PMEAN.Scale.E2 +
+                           PACCOM.Scale.E2 + PEN.Scale.E2 + PECON.Scale.E2 +
+                           PMIND.Scale.E2 + PHEALTH.Scale.E2 + PPWE.Scale.E2)/9,
+
+       
+#Add coworker 
+       PREL.Scale.E1C   = (PREL_1_EMP1C + PREL_2_EMP1C + PREL_3_EMP1C +   
+                           PREL_4_EMP1C)/4,
+       PE.Scale.E1C     = (PE_1_EMP1C + PE_2_EMP1C + PE_3_EMP1C)/3,
+       PMEAN.Scale.E1C  = (PMEAN_1_EMP1C + PMEAN_2_EMP1C + PMEAN_3_EMP1C)/3,
+       PACCOM.Scale.E1C = (PACCOM_1_EMP1C + PACCOM_2_EMP1C + PACCOM_3_EMP1C)/3,
+       PEN.Scale.E1C    = (PEN_1_EMP1C + PEN_2_EMP1C + PEN_3_EMP1C)/3,
+       PECON.Scale.E1C  = (PECON_1_EMP1C + PECON_2_EMP1C + PECON_3_EMP1C)/3,
+       PMIND.Scale.E1C  = (PMIND_1_EMP1C + PMIND_2_EMP1C + PMIND_3_EMP1C)/3,
+       PHEALTH.Scale.E1C= (PPHealth_1_EMP1C + PPHealth_2_EMP1C + PPHealth_3_EMP1C +
+                           PPHealth_4_EMP1C)/4,
+       PPWE.Scale.E1C   = (PPWE_1_EMP1C + PPWE_2_EMP1C + PPWE_3_EMP1C)/3,
+       PERMA.E1C        = (PREL.Scale.E1C + PE.Scale.E1C + PMEAN.Scale.E1C +
+                           PACCOM.Scale.E1C + PEN.Scale.E1C)/5,
+       PF.W.Scale.E1C   = (PREL.Scale.E1C + PE.Scale.E1C + PMEAN.Scale.E1C +
+                           PACCOM.Scale.E1C + PEN.Scale.E1C + PECON.Scale.E1C +
+                           PMIND.Scale.E1C + PHEALTH.Scale.E1C + PPWE.Scale.E1C)/9
+       )
+       
+#Scoring for PsyCap E1 and E2
+ScaleData <- mutate(ScaleData,
+      PsyCap.Hope.E1   =   (Psy_H_1_EMP1 + Psy_H_2_EMP1)/2,
+      PsyCap.SE.E1     =   (Psy_SE_1_EMP1 + Psy_SE_2_EMP1)/2,
+      PsyCap.Res.E1    =   (Psy_R_1_EMP1 + Psy_R_2_EMP1)/2,
+      PsyCap.O.E1      =   (Psy_0_1_EMP1 + Psy_O_2_EMP1)/2,
+      PsyCap.E1        =  (Psy_H_1_EMP1 + Psy_H_2_EMP1 + 
+                            Psy_SE_1_EMP1 + Psy_SE_2_EMP1 +
+                            Psy_R_1_EMP1 + Psy_R_2_EMP1 +
+                            Psy_0_1_EMP1 + Psy_O_2_EMP1)/8,
+       
+      
+      
+      PsyCap.Hope.E2C   =   (Psy_H_1_EMP2_C + Psy_H_2_EMP2_C)/2,
+      PsyCap.SE.E2C     =   (Psy_SE_1_EMP2_C + Psy_SE_2_EMP2_C)/2,
+      PsyCap.Res.E2C    =   (Psy_R_1_EMP2_C + Psy_R_2_EMP2_C)/2,
+      PsyCap.O.E2C      =   (Psy_0_1_EMP2_C + Psy_O_2_EMP2_C)/2,
+      PsyCap.E2C        =   (Psy_H_1_EMP2_C + Psy_H_2_EMP2_C + 
+                            Psy_SE_1_EMP2_C + Psy_SE_2_EMP2_C +
+                            Psy_R_1_EMP2_C + Psy_R_2_EMP2_C +
+                            Psy_0_1_EMP2_C + Psy_O_2_EMP2_C)/8)
+
+#Scoring PsyCap E2 and E1C
+ScaleData <- mutate(ScaleData,
+      PsyCap.Hope.E2   =   (Psy_H_1_EMP2 + Psy_H_2_EMP2)/2,
+      PsyCap.SE.E2     =   (Psy_SE_1_EMP2 + Psy_SE_1_EMP2)/2,
+      PsyCap.Res.E2    =   (Psy_R_1_EMP2 + Psy_R_1_EMP2)/2,
+      PsyCap.O.E2      =   (Psy_0_1_EMP2 + Psy_O_2_EMP2)/2,
+      PsyCap.E2        =   (Psy_H_1_EMP2 + Psy_H_2_EMP2 + 
+                            Psy_SE_1_EMP2 + Psy_SE_1_EMP2 +
+                            Psy_R_1_EMP2 + Psy_R_2_EMP2 +
+                            Psy_0_1_EMP2 + Psy_O_2_EMP2)/8,
+       
+      
+      
+      PsyCap.Hope.E1C   =   (Psy_H_1_EMP1C + Psy_H_2_EMP1C)/2,
+      PsyCap.SE.E1C     =   (Psy_SE_1_EMP1C + Psy_SE_1_EMP1C)/2,
+      PsyCap.Res.E1C    =   (Psy_R_1_EMP1C + Psy_R_1_EMP1C)/2,
+      PsyCap.O.E1C      =   (Psy_0_1_EMP1C + Psy_O_2_EMP2_C)/2,
+      PsyCap.E1C        =   (Psy_H_1_EMP1C + Psy_H_2_EMP1C + 
+                            Psy_SE_1_EMP1C + Psy_SE_1_EMP1C +
+                            Psy_R_1_EMP1C + Psy_R_2_EMP1C +
+                            Psy_0_1_EMP1C + Psy_O_2_EMP1C)/8)
+
+                    
+                    
+                    
+#Scoring for SWL E1 and E2C
+ScaleData <- mutate(ScaleData,       
+          SWLS.E1   =       (SWL_1_EMP1 + SWL_2_EMP1 +SWL_3_EMP1 + SWL_4_EMP1 +
+                             SWL_5_EMP1)/5,
+          SWLS.E2C  =       (SWL_1__EMP2_C + SWL_2__EMP2_C +SWL_3__EMP2_C +
+                             SWL_4__EMP2_C + SWL_5__EMP2_C)/5)
+
+#Scoring PWB for E1 and E2C
+ScaleData <- 
+  mutate(ScaleData,
+          OPRO.E1   = (PRO1_EMP1 + PRO2_EMP1 + PRO3_EMP1)/3,
+          OADAPT.E1 = (ADAPT1_EMP1 + ADAPT2_EMP1 + ADAPT3_EMP1)/3,
+          OPROF.E1  = (PROF1_EMP1 + PROF2_EMP1 + PROF3_EMP1)/3,
+          OPRO.E2C  = (OPRO1_EMP2_C + OPRO2_EMP2_C + OPROF3_EMP2_C)/3,
+          OADAPT.E2C= (OADAPT1_EMP2_C + OADAPT2_EMP2_C + OADAPT3_EMP2_C)/3,
+          OPROF.E2C = (OPROF1_EMP2_C + OPROF2_EMP2_C + OPROF3_EMP2_C)/3)
+#Scoring PWB for E2 and E1C
+ScaleData <- 
+  mutate(ScaleData,    
+          OPRO.E2   = (PRO1_EMP2 + PRO2_EMP2 + PRO3_EMP2)/3,
+          OADAPT.E2 = (ADAPT1_EMP2 + ADAPT2_EMP2 + ADAPT3_EMP2)/3,
+          OPROF.E2  = (PROF1_EMP2 + PROF2_EMP2 + PROF3_EMP2)/3,
+          OPRO.E1C  = (OPRO1_EMP1C + OPRO2_EMP1C + OPRO3_EMP1C)/3,
+          OADAPT.E1C= (OADAPT1_EMP1C + OADAPT2_EMP1C + OADAPT3_EMP1C)/3,
+          OPROF.E1C = (OPROF1_EMP1C + OPROF2_EMP1C + OPROF3_EMP1C)/3,
+         
+#Scoring JAWS 
+          JAWS.PE.E1 = (J1_EMP1 + J2_EMP1 + J3_EMP1 + J4_EMP1 + J5_EMP1 +
+                        J6_EMP1 + J7_EMP1 + J8_EMP1 + J9_EMP1 + J10_EMP1)/10,
+          JAWS.PE.E2C= (J1_EMP2_C + J2_EMP2_C + J3_EMP2_C + J4_EMP2_C + J5_EMP2_C +
+                        J6_EMP2_C + J7_EMP2_C + J8_EMP2_C + J9_EMP2_C + J10_EMP2_C)/10,
+          JAWS.PE.E2 = (J1_EMP2 + J2_EMP2 + J3_EMP2 + J4_EMP2 + J5_EMP2 +
+                        J6_EMP2 + J7_EMP2 + J8_EMP2 + J9_EMP2 + J10_EMP2)/10,
+          JAWS.PE.E1C= (J1_EMP1C + J2_EMP1C + J3_EMP1C + J4_EMP1C + J5_EMP1C +
+                        J6_EMP1C + J7_EMP1C + J8_EMP1C + J9_EMP1C + J10_EMP1C)/10)
+
+#Scoring Turnover for all, echo=false}
+##EMP1
+ScaleData$Turnover_1_EMP1 <- as.numeric(ScaleData$Turnover_1_EMP1)
+ScaleData$Turnover_2_EMP1 <- as.numeric(ScaleData$Turnover_2_EMP1)
+ScaleData$Turnover_3_EMP1 <- as.numeric(ScaleData$Turnover_3_EMP1)
+ScaleData$Turnover_4_R_EMP1 <- as.numeric(ScaleData$Turnover_4_R_EMP1)
+ScaleData$Turnover_5_EMP1 <- as.numeric(ScaleData$Turnover_5_EMP1)
+##EMP2C
+ScaleData$Turnover_1_EMP2_C <- as.numeric(ScaleData$Turnover_1_EMP2_C)
+ScaleData$Turnover_2_EMP2_C <- as.numeric(ScaleData$Turnover_2_EMP2_C)
+ScaleData$Turnover_3_EMP2_C <- as.numeric(ScaleData$Turnover_3_EMP2_C)
+ScaleData$Turnover_4_R_EMP2_C <- as.numeric(ScaleData$Turnover_4_R_EMP2_C)
+ScaleData$Turnover_5_EMP2_C <- as.numeric(ScaleData$Turnover_3_EMP2_C)
+##EMP2
+ScaleData$Turnover_1_EMP2 <- as.numeric(ScaleData$Turnover_1_EMP2)
+ScaleData$Turnover_2_EMP2 <- as.numeric(ScaleData$Turnover_2_EMP2)
+ScaleData$Turnover_3_EMP2 <- as.numeric(ScaleData$Turnover_3_EMP2)
+ScaleData$Turnover_4_R_EMP2 <- as.numeric(ScaleData$Turnover_4_R_EMP2)
+ScaleData$Turnover_5_EMP2 <- as.numeric(ScaleData$Turnover_3_EMP2)
+##EMP1C
+ScaleData$Turnover_1_EMP1C <- as.numeric(ScaleData$Turnover_1_EMP1C)
+ScaleData$Turnover_2_EMP1C <- as.numeric(ScaleData$Turnover_2_EMP1C)
+ScaleData$Turnover_3_EMP1C <- as.numeric(ScaleData$Turnover_3_EMP1C)
+ScaleData$Turnover_4_R_EMP1C <- as.numeric(ScaleData$Turnover_4_R_EMP1C)
+ScaleData$Turnover_5_EMP1C <- as.numeric(ScaleData$Turnover_3_EMP1C)
+
+#Recode Turnover and Reverse the 4th and 5th Item
+##EMP1
+ScaleData$Turnover_1_EMP1 <- recode(ScaleData$Turnover_1_EMP1, 
+                                    '20' = 1,
+                                    '21' = 2,
+                                    '22' = 3,
+                                    '23' = 4,
+                                    '24' = 5)
+ScaleData$Turnover_2_EMP1 <- recode(ScaleData$Turnover_2_EMP1, 
+                                    '20' = 1,
+                                    '21' = 2,
+                                    '22' = 3,
+                                    '23' = 4,
+                                    '24' = 5)
+ScaleData$Turnover_3_EMP1 <- recode(ScaleData$Turnover_3_EMP1,
+                                    '20' = 1,
+                                    '21' = 2,
+                                    '22' = 3,
+                                    '23' = 4,
+                                    '24' = 5)
+ScaleData$Turnover_4_R_EMP1 <- recode(ScaleData$Turnover_4_R_EMP1,
+                                    '20' = 5,
+                                    '21' = 4, 
+                                    '22' = 3,
+                                    '23' = 2,
+                                    '24' = 1)
+ScaleData$Turnover_5_EMP1 <- recode(ScaleData$Turnover_5_EMP1,
+                                    '20' = 5,
+                                    '21' = 4,
+                                    '22' = 3,
+                                    '23' = 2,
+                                    '24' = 1)
+##EMP2C
+ScaleData$Turnover_1_EMP2_C <- recode(ScaleData$Turnover_1_EMP2_C,
+                                    '20' = 1,
+                                    '21' = 2,
+                                    '22' = 3,
+                                    '23' = 4,
+                                    '24' = 5)
+ScaleData$Turnover_2_EMP2_C <- recode(ScaleData$Turnover_2_EMP2_C,
+                                    '20' = 1,
+                                    '21' = 2,
+                                    '22' = 3,
+                                    '23' = 4,
+                                    '24' = 5)
+ScaleData$Turnover_3_EMP2_C <- recode(ScaleData$Turnover_3_EMP2_C,
+                                    '20' = 1,
+                                    '21' = 2,
+                                    '22' = 3,
+                                    '23' = 4,
+                                    '24' = 5)
+ScaleData$Turnover_4_R_EMP2_C <- recode(ScaleData$Turnover_4_R_EMP2_C,
+                                    '20' = 5,
+                                    '21' = 4,
+                                    '22' = 3,
+                                    '23' = 2,
+                                    '24' = 1)
+ScaleData$Turnover_5_EMP2_C <- recode(ScaleData$Turnover_5_EMP2_C,
+                                    '20' = 5,
+                                    '21' = 4, 
+                                    '22' = 3,
+                                    '23' = 2,
+                                    '24' = 1)
+##EMP2
+ScaleData$Turnover_1_EMP2 <- recode(ScaleData$Turnover_1_EMP2,
+                                    '20' = 1,
+                                    '21' = 2,
+                                    '22' = 3,
+                                    '23' = 4,
+                                    '24' = 5)
+ScaleData$Turnover_2_EMP2 <- recode(ScaleData$Turnover_2_EMP2,
+                                    '20' = 1,
+                                    '21' = 2,
+                                    '22' = 3,
+                                    '23' = 4,
+                                    '24' = 5)
+ScaleData$Turnover_3_EMP2 <- recode(ScaleData$Turnover_3_EMP2,
+                                    '20' = 1,
+                                    '21' = 2,
+                                    '22' = 3,
+                                    '23' = 4,
+                                    '24' = 5)
+ScaleData$Turnover_4_R_EMP2 <- recode(ScaleData$Turnover_4_R_EMP2, 
+                                    '20' = 5,
+                                    '21' = 4,
+                                    '22' = 3,
+                                    '23' = 2,
+                                    '24' = 1)
+ScaleData$Turnover_5_EMP2 <- recode(ScaleData$Turnover_5_EMP2,
+                                    '20' = 5,
+                                    '21' = 4,
+                                    '22' = 3,
+                                    '23' = 2,
+                                    '24' = 1)
+##EMP1C
+ScaleData$Turnover_1_EMP1C <- recode(ScaleData$Turnover_1_EMP1C,
+                                    '20' = 1,
+                                    '21' = 2,
+                                    '22' = 3,
+                                    '23' = 4,
+                                    '24' = 5)
+ScaleData$Turnover_2_EMP1C <- recode(ScaleData$Turnover_2_EMP1C,
+                                    '20' = 1,
+                                    '21' = 2,
+                                    '22' = 3,
+                                    '23' = 4,
+                                    '24' = 5)
+ScaleData$Turnover_3_EMP1C <- recode(ScaleData$Turnover_3_EMP1C,
+                                    '20' = 1,
+                                    '21' = 2,
+                                    '22' = 3,
+                                    '23' = 4,
+                                    '24' = 5)
+ScaleData$Turnover_4_R_EMP1C <- recode(ScaleData$Turnover_4_R_EMP1C,
+                                    '20' = 5,
+                                    '21' = 4,
+                                    '22' = 3,
+                                    '23' = 2,
+                                    '24' = 1)
+ScaleData$Turnover_5_EMP1C <- recode(ScaleData$Turnover_5_EMP1C,
+                                    '20' = 5,
+                                    '21' = 4, 
+                                    '22' = 3,
+                                    '23' = 2,
+                                    '24' = 1)
+#Scoring Turnover E1 and  E2C
+ScaleData <- 
+  mutate(ScaleData,    
+    Turnover.E1    = (Turnover_1_EMP1 + Turnover_2_EMP1 + Turnover_3_EMP1 + Turnover_4_R_EMP1 +
+                      Turnover_5_EMP1)/5,
+    Turnover.E2C   = (Turnover_1_EMP2_C + Turnover_2_EMP2_C + Turnover_3_EMP2_C +
+                      Turnover_4_R_EMP2_C + Turnover_5_EMP2_C)/5)
+#Scoring Turnover E2 and E1C
+ScaleData <- 
+  mutate(ScaleData,    
+    Turnover.E2    = (Turnover_1_EMP2 + Turnover_2_EMP2 + Turnover_3_EMP2 + Turnover_4_R_EMP2 +
+                      Turnover_5_EMP2)/5,
+    Turnover.E1C   = (Turnover_1_EMP1C + Turnover_2_EMP1C + Turnover_3_EMP1C +  Turnover_4_R_EMP1C +
+                      Turnover_5_EMP1C)/5)
+
+#Demographics Scoring 
+##Employee 1 Demos
+###Subset only Scale Scores and Demographics
+TidyData <- ScaleData[, c(274:293, 363:384)]
+  
+TidyData$Ethnicity_EMP1_2[TidyData$Ethnicity_EMP1_2 %in% 1] <- 2
+TidyData$Ethnicity_EMP1_3[TidyData$Ethnicity_EMP1_3 %in% 1] <- 3
+TidyData$Ethnicity_EMP1_4[TidyData$Ethnicity_EMP1_4 %in% 1] <- 4
+TidyData$Ethnicity_EMP1_5[TidyData$Ethnicity_EMP1_5 %in% 1] <- 5
+TidyData$Ethnicity_EMP1_6[TidyData$Ethnicity_EMP1_6 %in% 1] <- 6
+TidyData$Ethnicity_EMP1_7[TidyData$Ethnicity_EMP1_7 %in% 1] <- 7 
+
+
+
+#Unite Ethnicity into ETH.NUll and ETH.E2
+TidyData <- unite(TidyData, ETH.E1, Ethnicity_EMP1_1, Ethnicity_EMP1_2, Ethnicity_EMP1_3, Ethnicity_EMP1_4, Ethnicity_EMP1_5, Ethnicity_EMP1_6, Ethnicity_EMP1_7, sep = "_", remove = FALSE, na.rm = TRUE)
+
+
+
+##Recode into factor variables for both employees (Etnicity, Degree, Industry, JobFunction, Income)
+TidyData$ETH.E1           <- as.factor(as.character(TidyData$ETH.E1))
+TidyData$Degree_EMP1      <- as.factor(as.character(TidyData$Degree_EMP1))
+TidyData$Industry_EMP1    <- as.factor(as.character(TidyData$Industry_EMP1))
+TidyData$JobFunction_EMP1 <- as.factor(as.character(TidyData$JobFunction_EMP1))
+TidyData$Income_EMP1      <- as.factor(as.character(TidyData$Income_EMP1))
+TidyData$Gender_EMP1      <- as.factor(as.character(TidyData$Gender_EMP1))
+
+TidyData <- TidyData %>% mutate(Degree.E1 = fct_recode(Degree_EMP1,
+                      "Associate"          = "1",
+                      "Bachelor"           = "2" ,
+                      "Master"             = "3" ,
+                      "Doctorate"          = "4" ,
+                      "Highschool or less" =  "5"
+                    ))
+
+TidyData <- TidyData %>% mutate(Industry.E1 = fct_recode(Industry_EMP1,
+                      "Banking"                           = "1",
+                      "Education"                         = "2" ,
+                      "Food & Beverage"                   = "3" ,
+                      "Government"                        = "4" ,
+                      "Healthcare"                        = "5",
+                      "Manufacturing"                     = "6",
+                      "Media & Entertainment"             = "7",
+                      "Retail, Wholesale, & Distribution" = "8",
+                      "Software & IT"                     = "9",
+                      "Nonprofit"                         = "10",
+                      "Other"                             = "11"
+                      ))
+
+TidyData <- TidyData %>% mutate(JobFunction.E1 = fct_recode(JobFunction_EMP1,
+                      "Accounting & Finance"              = "1",
+                      "Administrative"                    = "2" ,
+                      "Arts & Design"                     = "3" ,
+                      "Education"                         = "4" ,
+                      "Engineering"                       = "5",
+                      "IT"                                = "6",
+                      "Marketing, Sales, & Business Dev." = "7",
+                      "Management"                        = "8",
+                      "Operations"                        = "9",
+                      "Other"                             = "10"
+                      ))
+
+TidyData <- TidyData %>% mutate(Income.E1 = fct_recode(Income_EMP1,
+                      "Less than 25k" = "1",
+                      "25-49k"        = "2" ,
+                      "50-75k"        = "3" ,
+                      "75-99k"        = "4" ,
+                      "100-150k"      =  "5",
+                      "150+"          ="6"
+                      ))
+
+data.frame(colnames(TidyData))
+
+#####
+Employee1.Demos <- TidyData[, c(1, 2, 11, 12, 44:47)]
+
+Employee1.Demos <-Employee1.Demos %>% mutate(Eth.Final.E1 = fct_recode(ETH.E1,
+                    "Multiracial" = "1_2_3_4_5_6_NA",
+                    "Multiracial" = "NA_NA_3_NA_NA_6_NA" ,
+                    "Multiracial" = "NA_NA_NA_4_NA_6_NA",
+                    "Multiracial" =  "NA_NA_NA_NA_5_6_NA",
+                    "Multiracial" = "1_NA_3_NA_5_6_NA",
+                    "Multiracial" = "1_NA_NA_NA_5_NA_NA",
+                    "Asian"       = "NA_NA_3_NA_NA_NA_NA",
+                    "Hispanic"    = "NA_NA_NA_NA_5_NA_NA" ,
+                    "White"       = "NA_NA_NA_NA_NA_6_NA",
+                    "Multiracial" = "NA_NA_NA_NA_NA_NA_7",
+                    "Black"       = "1_NA_NA_NA_NA_NA_NA",
+                    "NHOPI"       = "NA_NA_NA_4_NA_NA_NA",
+                    "ANAI"        = "NA_2_NA_NA_NA_NA_NA"))
+
+Employee1.Demos <-Employee1.Demos %>% mutate(Degree.Final = fct_recode(Degree.E1,
+                    "Associate"          = "1",
+                    "Bachelor"           = "2" ,
+                    "Master"             = "3" ,
+                    "Doctorate"          = "4" ,
+                    "Highschool or less" = "5"
+                    ))
+Employee1.Demos <-Employee1.Demos %>% mutate(Gender.Final = fct_recode(Gender_EMP1,
+                    "Male"   = "1",
+                    "Female" = "2" ,
+                    "Other"  = "3"
+                    ))
+
+Employee1.Demos <-Employee1.Demos %>% mutate(Industry.Final = fct_recode(Industry.E1,
+                    "Banking"                           = "1",
+                    "Education"                         = "2" ,
+                    "Food & Beverage"                   = "3" ,
+                    "Government"                        = "4" ,
+                    "Healthcare"                        =  "5",
+                    "Manufacturing"                     =  "6",
+                    "Media & Entertainment"             =  "7",
+                    "Retail, Wholesale, & Distribution" =  "8",
+                    "Software & IT"                     =  "9",
+                    "Nonprofit"                         =  "10",
+                    "Other"                             =  "11"
+                      ))
+
+
+Employee1.Demos <-Employee1.Demos %>% mutate(JobFunction.Final = fct_recode(JobFunction.E1,
+                    "Accounting & Finance" = "1",
+                    "Administrative" = "2" ,
+                    "Arts & Design" = "3" ,
+                    "Education" = "4" ,
+                    "Engineering" =  "5",
+                    "IT" =  "6",
+                    "Marketing, Sales, & Business Dev." =  "7",
+                    "Operations" =  "8",
+                    "Management" =  "12",
+                    "Other" =  "11"
+                      ))
+
+Employee1.Demos <-Employee1.Demos %>% mutate(Income.Final = fct_recode(Income.E1,
+                    "Less than 25k" = "1",
+                    "25-49k" = "3" ,
+                    "50-75k" = "4" ,
+                    "75-99k" = "5" ,
+                    "100-150k" =  "6",
+                    "150+" ="7"
+                    ))
+
+
+Employee1.Demos <- Employee1.Demos[, c(3, 9:14)]
+
+#Employee 2 Demos
+TidyData.E2 <- ScaleData[, c( 319:325, 327, 328, 330, 332, 334, 337)]
+
+TidyData.E2$Ethnicity_EMP2_2[TidyData$Ethnicity_EMP2_2 %in% 1] <- 2
+TidyData.E2$Ethnicity_EMP2_3[TidyData$Ethnicity_EMP2_3 %in% 1] <- 3
+TidyData.E2$Ethnicity_EMP2_4[TidyData$Ethnicity_EMP2_4 %in% 1] <- 4
+TidyData.E2$Ethnicity_EMP2_5[TidyData$Ethnicity_EMP2_5 %in% 1] <- 5
+TidyData.E2$Ethnicity_EMP2_6[TidyData$Ethnicity_EMP2_6 %in% 1] <- 6
+TidyData.E2$Ethnicity_EMP2_7[TidyData$Ethnicity_EMP2_7 %in% 1] <- 7 
+
+
+attach(TidyData.E2)
+#Unite Ethnicity into ETH.NUll and ETH.E2
+TidyData.E2 <- unite(TidyData.E2, ETH.E2, Ethnicity_EMP2_1, Ethnicity_EMP2_2, Ethnicity_EMP2_3, Ethnicity_EMP2_4, Ethnicity_EMP2_5, Ethnicity_EMP2_6, Ethnicity_EMP2_7, sep = "_", remove = FALSE, na.rm = TRUE)
+
+
+##Recode into factor variables for both employees (Etnicity, Degree, Industry, JobFunction, Income)
+TidyData.E2$ETH.E2           <- as.factor(as.character(TidyData.E2$ETH.E2))
+TidyData.E2$Degree_EMP2      <- as.factor(as.character(TidyData.E2$Degree_EMP2))
+TidyData.E2$Industry_EMP2    <- as.factor(as.character(TidyData.E2$Industry_EMP2))
+TidyData.E2$JobFunction_EMP2 <- as.factor(as.character(TidyData.E2$JobFunction_EMP2))
+TidyData.E2$Income_EMP2      <- as.factor(as.character(TidyData.E2$Income_EMP2))
+TidyData.E2$Gender_EMP2      <- as.factor(as.character(TidyData.E2$Gender_EMP2))
+TidyData.E2$Age_EMP2         <- as.numeric(as.character(TidyData.E2$Age_EMP2))
+
+
+TidyData.E2 <- TidyData.E2 %>% mutate(Degree.E2 = fct_recode(Degree_EMP2,
+                    "Associate"          = "1",
+                    "Bachelor"           = "2" ,
+                    "Master"             = "3" ,
+                    "Doctorate"          = "4" ,
+                    "Highschool or less" =  "5"
+                    ))
+
+TidyData.E2 <- TidyData.E2 %>% mutate(Industry.E2 = fct_recode(Industry_EMP2,
+                    "Banking" = "1",
+                    "Education" = "2" ,
+                    "Food & Beverage" = "3" ,
+                    "Government" = "4" ,
+                    "Healthcare" =  "5",
+                    "Manufacturing" =  "6",
+                    "Media & Entertainment" =  "7",
+                    "Retail, Wholesale, & Distribution" =  "8",
+                    "Software & IT" =  "9",
+                    "Nonprofit" =  "10",
+                    "Other" =  "11"
+                    ))
+
+TidyData.E2 <- TidyData.E2 %>% mutate(JobFunction.E2 = fct_recode(JobFunction_EMP2,
+                    "Accounting & Finance"              = "1",
+                    "Administrative"                    = "2" ,
+                    "Arts & Design"                     = "3" ,
+                    "Education"                         = "4" ,
+                    "Engineering"                       = "5",
+                    "IT"                                = "6",
+                    "Marketing, Sales, & Business Dev." = "7",
+                    "Management"                        = "12",
+                    "Operations"                        = "8",
+                    "Other"                             = "11"
+                    ))
+
+TidyData.E2 <- TidyData.E2 %>% mutate(Income.E2 = fct_recode(Income_EMP2,
+                    "Less than 25k" = "1",
+                    "25-49k"        = "3" ,
+                    "50-75k"        = "4" ,
+                    "75-99k"        = "5" ,
+                    "100-150k"      = "6",
+                    "150+"          = "7"
+                    ))
+
+data.frame(colnames(TidyData.E2))
+
+#####
+Employee2.Demos <- TidyData.E2[, c(1, 9, 10, 15:18)]
+
+Employee2.Demos <-Employee2.Demos %>% mutate(Eth.Final.E2 = fct_recode(ETH.E2,
+                    "Multiracial" = "1_1_1_1_1_1_NA",
+                    "Multiracial" = "1_NA_1_NA_1_1_NA" ,
+                    "Multiracial" = "1_NA_NA_NA_1_NA_NA",
+                    "Black"       = "1_NA_NA_NA_NA_NA_NA",
+                    "AIAN"        =  "NA_1_NA_NA_NA_NA_NA",
+                    "Multiracial" = "NA_NA_1_NA_NA_1_NA",
+                    "Asian"       = "NA_NA_1_NA_NA_NA_NA",
+                    "NHPI"        = "NA_NA_NA_1_NA_NA_NA",
+                    "Multiracial" = "NA_NA_NA_NA_1_1_NA",
+                    "Hispanic"    = "NA_NA_NA_NA_1_NA_NA" ,
+                    "White"       = "NA_NA_NA_NA_NA_1_NA"
+                    ))
+                     
+Employee2.Demos <-Employee2.Demos %>% mutate(Degree.Final = fct_recode(Degree.E2,
+                    "Associate"          = "1",
+                    "Bachelor"           = "2" ,
+                    "Master"             = "3" ,
+                    "Doctorate"          = "4" ,
+                    "Highschool or less" = "5"
+                    ))
+Employee2.Demos <-Employee2.Demos %>% mutate(Gender.Final = fct_recode(Gender_EMP2,
+                    "Male"   = "1",
+                    "Female" = "2" ,
+                    "Other"  = "3"
+                    ))
+
+Employee2.Demos <-Employee2.Demos %>% mutate(Industry.Final = fct_recode(Industry.E2,
+                    "Banking"                           = "1",
+                    "Education"                         = "2" ,
+                    "Food & Beverage"                   = "3" ,
+                    "Government"                        = "4" ,
+                    "Healthcare"                        = "5",
+                    "Manufacturing"                     = "6",
+                    "Media & Entertainment"             = "7",
+                    "Retail, Wholesale, & Distribution" = "8",
+                    "Software & IT"                     = "9",
+                    "Nonprofit"                         = "10",
+                    "Other"                             = "11"
+                    ))
+
+
+Employee2.Demos <-Employee2.Demos %>% mutate(JobFunction.Final = fct_recode(JobFunction.E2,
+                    "Accounting & Finance"             = "1",
+                    "Administrative"                   = "2" ,
+                    "Arts & Design"                    = "3" ,
+                    "Education"                        = "4" ,
+                    "Engineering"                      = "5",
+                    "IT"                               = "6",
+                    "Marketing, Sales, & Business Dev."= "7",
+                    "Operations"                       = "8",
+                    "Management"                       = "12",
+                    "Other"                            = "11"
+                    ))
+
+Employee2.Demos <-Employee2.Demos %>% mutate(Income.Final = fct_recode(Income.E2,
+                    "Less than 25k" = "1",
+                    "25-49k"        = "3" ,
+                    "50-75k"        = "4" ,
+                    "75-99k"        = "5" ,
+                    "100-150k"      = "6",
+                    "150+"          ="7"
+                    ))
+Employee2.Demos <- Employee2.Demos[, c(2,8:13)]
+
+attach(ScaleData)
+#E1 get rid of Haven label
+ScaleData$Bias_EMP1_1 <- as.numeric(ScaleData$Bias_EMP1_1)
+ScaleData$Bias_EMP1_2 <- as.numeric(ScaleData$Bias_EMP1_2)
+ScaleData$Bias_EMP1_3 <- as.numeric(ScaleData$Bias_EMP1_3)
+ScaleData$Bias_EMP1_4 <- as.numeric(ScaleData$Bias_EMP1_4)
+ScaleData$Bias_EMP1_5 <- as.numeric(ScaleData$Bias_EMP1_5)
+ScaleData$Bias_EMP1_6 <- as.numeric(ScaleData$Bias_EMP1_6)
+
+#E1
+ScaleData$Bias_EMP1_1 <- recode(ScaleData$Bias_EMP1_1,
+                                '11' = 1,
+                                '12' = 2,
+                                '13' = 3,
+                                '14' = 4,
+                                '15' = 5,
+                                '16' = 6,
+                                '17' = 7)
+ScaleData$Bias_EMP1_2 <- recode(ScaleData$Bias_EMP1_2,
+                                '11' = 1,
+                                '12' = 2,
+                                '13' = 3,
+                                '14' = 4,
+                                '15' = 5, 
+                                '16' = 6, 
+                                '17' = 7)
+ScaleData$Bias_EMP1_3 <- recode(ScaleData$Bias_EMP1_3, 
+                                '11' = 1,
+                                '12' = 2,
+                                '13' = 3,
+                                '14' = 4,
+                                '15' = 5,
+                                '16' = 6,
+                                '17' = 7)
+ScaleData$Bias_EMP1_4 <- recode(ScaleData$Bias_EMP1_4,
+                                '11' = 1,
+                                '12' = 2,
+                                '13' = 3,
+                                '14' = 4,
+                                '15' = 5,
+                                '16' = 6, 
+                                '17' = 7)
+ScaleData$Bias_EMP1_5 <- recode(ScaleData$Bias_EMP1_5,
+                                '11' = 1,
+                                '12' = 2,
+                                '13' = 3,
+                                '14' = 4,
+                                '15' = 5, 
+                                '16' = 6,
+                                '17' = 7)
+ScaleData$Bias_EMP1_6 <- recode(ScaleData$Bias_EMP1_6,
+                                '11' = 1,
+                                '12' = 2,
+                                '13' = 3,
+                                '14' = 4,
+                                '15' = 5,
+                                '16' = 6,
+                                '17' = 7)
+
+#E2 get rid of Haven label
+ScaleData$BIAS_EMP2_C_1 <- as.numeric(ScaleData$BIAS_EMP2_C_1)
+ScaleData$BIAS_EMP2_C_2 <- as.numeric(ScaleData$BIAS_EMP2_C_2)
+ScaleData$BIAS_EMP2_C_3 <- as.numeric(ScaleData$BIAS_EMP2_C_3)
+ScaleData$BIAS_EMP2_C_4 <- as.numeric(ScaleData$BIAS_EMP2_C_4)
+ScaleData$BIAS_EMP2_C_5 <- as.numeric(ScaleData$BIAS_EMP2_C_5)
+ScaleData$BIAS_EMP2_C_6 <- as.numeric(ScaleData$BIAS_EMP2_C_6)
+
+#E2
+ScaleData$BIAS_EMP2_C_1 <- recode(ScaleData$BIAS_EMP2_C_1,
+                                '11' = 1,
+                                '12' = 2,
+                                '13' = 3,
+                                '14' = 4,
+                                '15' = 5,
+                                '16' = 6,
+                                '17' = 7)
+ScaleData$BIAS_EMP2_C_2 <- recode(ScaleData$BIAS_EMP2_C_2,
+                                '11' = 1,
+                                '12' = 2,
+                                '13' = 3,
+                                '14' = 4,
+                                '15' = 5,
+                                '16' = 6, 
+                                '17' = 7)
+ScaleData$BIAS_EMP2_C_3 <- recode(ScaleData$BIAS_EMP2_C_3,
+                                '11' = 1,
+                                '12' = 2,
+                                '13' = 3,
+                                '14' = 4,
+                                '15' = 5,
+                                '16' = 6,
+                                '17' = 7)
+ScaleData$BIAS_EMP2_C_4 <- recode(ScaleData$BIAS_EMP2_C_4,
+                                '11' = 1,
+                                '12' = 2,
+                                '13' = 3,
+                                '14' = 4,
+                                '15' = 5,
+                                '16' = 6,
+                                '17' = 7)
+ScaleData$BIAS_EMP2_C_5 <- recode(ScaleData$BIAS_EMP2_C_5,
+                                '11' = 1,
+                                '12' = 2, 
+                                '13' = 3,
+                                '14' = 4,
+                                '15' = 5,
+                                '16' = 6,
+                                '17' = 7)
+ScaleData$BIAS_EMP2_C_6 <- recode(ScaleData$BIAS_EMP2_C_6, 
+                                '11' = 1, 
+                                '12' = 2, 
+                                '13' = 3,
+                                '14' = 4,
+                                '15' = 5, 
+                                '16' = 6,
+                                '17' = 7)
+
+
+ScaleData <- mutate(ScaleData,
+                    Knowledge.1.C      = (Bias_EMP1_1 + BIAS_EMP2_C_1)/2,
+                    Knowledge.2.C      = (Bias_EMP1_2 + BIAS_EMP2_C_2)/2,
+                    Confident.C        = (Bias_EMP1_3 + BIAS_EMP2_C_3)/2,
+                    Confident.Self     = (Bias_EMP1_4 + BIAS_EMP2_C_4)/2,
+                    Admission.Self     = (Bias_EMP1_5 + BIAS_EMP2_C_5)/2,
+                    Fear.Reprisal.Self = (Bias_EMP1_6 + BIAS_EMP2_C_6)/2
+)
+                    
+                      
+#Reverse Code Admission and Fear of Reprisal (5 and 6) 
+##Admission Self
+ScaleData$Admission.Self.R <- recode(ScaleData$Admission.Self, 
+                                     '1'   = 7,
+                                     '1.5' = 6.5,
+                                     '2'   = 6,
+                                     '2.5' = 5.5,
+                                     '3'   = 5,
+                                     '3.5' = 4.5,
+                                     '4'   = 4.0,
+                                     '4.5' = 3.5,
+                                     '5'   = 3.0,
+                                     '5.5' = 2.5,
+                                     '6'   = 2.0,
+                                     '6.5' = 1.5,
+                                     '7.0' = 1.0
+                                     )
+              
+##Fear of Reprisal Self
+ScaleData$Fear.Reprisal.Self.R <- recode(ScaleData$Fear.Reprisal.Self, 
+                                     '1'   = 7,
+                                     '1.5' = 6.5,
+                                     '2'   = 6,
+                                     '2.5' = 5.5,
+                                     '3'   = 5,
+                                     '3.5' = 4.5,
+                                     '4'   = 4.0,
+                                     '4.5' = 3.5,
+                                     '5'   = 3.0,
+                                     '5.5' = 2.5,
+                                     '6'   = 2.0,
+                                     '6.5' = 1.5,
+                                     '7.0' = 1.0
+                                     )             
+
+#Create dataset for PERMA(4) and SWLS
+Scale.Final <- ScaleData[, c(363:456)]
+
+###Score Aggregated PERMA and PF                  
+attach(Scale.Final)
+Scale.Final$Empty <- seq(NA)
+Scale.Final$Empty <- NA
+
+
+Master <- data.frame(
+                PERMA.Self = c(Scale.Final$PERMA.E1, Scale.Final$PERMA.E2),
+                PF.Self    = c(Scale.Final$PF.W.Scale.E1 , Scale.Final$PF.W.Scale.E2),
+                PERMA.C    = c(Scale.Final$PERMA.E1C , Scale.Final$PERMA.E2C),
+                PF.C       = c(Scale.Final$PF.W.Scale.E1C , Scale.Final$PF.W.Scale.E2C),
+                SWB.Self   = c(Scale.Final$SWLS.E1, Scale.Final$Empty),
+                SWB.C      = c(Scale.Final$SWLS.E2C, Scale.Final$Empty),
+###Score Aggregated for PWB
+                OPRO.Self   = c(Scale.Final$OPRO.E1 , Scale.Final$OPRO.E2),
+                OADAPT.Self = c(Scale.Final$OADAPT.E1 , Scale.Final$OADAPT.E2),
+                OPROF.Self  = c(Scale.Final$OPROF.E1 , Scale.Final$OPROF.E2),
+                OPRO.C      = c(Scale.Final$OPRO.E1C ,Scale.Final$OPRO.E2C),
+                OADAPT.C    = c(Scale.Final$OADAPT.E1C , Scale.Final$OADAPT.E2C),
+                OPROF.C     = c(Scale.Final$OPROF.E1C , Scale.Final$OPROF.E2C),
+###JAWS
+                JAWS.PE.Self = c(Scale.Final$JAWS.PE.E1 , Scale.Final$JAWS.PE.E2),
+                JAWS.PE.C    = c(Scale.Final$JAWS.PE.E1C , Scale.Final$JAWS.PE.E2C),
+
+###Turnover
+                Turnover.Self = c(Scale.Final$Turnover.E1,
+                                  Scale.Final$Turnover.E2),
+                Turnover.C    = c(Scale.Final$Turnover.E1C,
+                                  Scale.Final$Turnover.E2C),
+
+###PsyCap
+                PsyCap.Self = c(Scale.Final$PsyCap.E1 , Scale.Final$PsyCap.E2),
+                PsyCap.C    = c(Scale.Final$PsyCap.E1C , Scale.Final$PsyCap.E2C),
+                PsyCap.Self.H = c(Scale.Final$PsyCap.Hope.E1,
+                                  Scale.Final$PsyCap.Hope.E2),
+                PsyCap.Self.SE = c(Scale.Final$PsyCap.SE.E1,
+                                  Scale.Final$PsyCap.SE.E2),
+                PsyCap.Self.R = c(Scale.Final$PsyCap.Res.E1,
+                                  Scale.Final$PsyCap.Res.E2),
+                PsyCap.Self.O = c(Scale.Final$PsyCap.O.E1,
+                                  Scale.Final$PsyCap.O.E2),
+                PsyCap.Co.H = c(Scale.Final$PsyCap.Hope.E1C,
+                                  Scale.Final$PsyCap.Hope.E2C),
+                PsyCap.Co.SE = c(Scale.Final$PsyCap.SE.E1C,
+                                  Scale.Final$PsyCap.SE.E2C),
+                PsyCap.Co.R = c(Scale.Final$PsyCap.Res.E1C,
+                                  Scale.Final$PsyCap.Res.E2C),
+                PsyCap.Co.O = c(Scale.Final$PsyCap.O.E1C,
+                                  Scale.Final$PsyCap.O.E2C),
+
+#Bias
+                Accuracy.Co   = (Scale.Final$Knowledge.1.C +  
+                                 Scale.Final$Knowledge.2.C +
+                                 Scale.Final$Confident.C)/3,
+                Accuracy.Self = (Scale.Final$Admission.Self.R +
+                                 Scale.Final$Fear.Reprisal.Self.R)/2)
+                
+#Concatenate DEMOS
+Demos.Final <- data.frame(
+                          Age         = c(Employee1.Demos$Age_EMP1, 
+                                          Employee2.Demos$Age_EMP2),
+                          Race        = str_c(Employee1.Demos$Eth.Final.E1,
+                                              Employee2.Demos$Eth.Final.E2),
+                          Gender      = c(Employee1.Demos$Gender.Final,
+                                          Employee2.Demos$Gender.Final),
+                          Income      = c(Employee1.Demos$Income.Final,
+                                          Employee2.Demos$Income.Final),
+                          Industry    = c(Employee1.Demos$Industry.Final,
+                                          Employee2.Demos$Industry.Final),
+                          JobFunction = c(Employee1.Demos$JobFunction.Final,
+                                          Employee2.Demos$JobFunction.Final),
+                          Degree      = c(Employee1.Demos$Degree.Final, 
+                                          Employee2.Demos$Degree.Final)
+                          
+)
+
+
+##Final Merge
+Demos.Final$ID.Final <- seq.int(nrow(Demos.Final))
+Master$ID.Final <- seq.int(nrow(Master))
+THE.MASTER <- left_join(Master, Demos.Final, by = "ID.Final")
+
+#Gender
+THE.MASTER$Gender <-  as.factor(THE.MASTER$Gender)
+THE.MASTER$Gender <- recode_factor(THE.MASTER$Gender, 
+                                   '1' ="Male", 
+                                   '2' = "Female", 
+                                   '3' = "Other")
+
+#Race
+THE.MASTER$Race <-  as.factor(THE.MASTER$Race)
+THE.MASTER$Race <- recode_factor(THE.MASTER$Race, 
+                                 '1' ="Black", 
+                                 '2' = "ANAI", 
+                                 '3' = "Asian",
+                                 '4' ="NHPI",
+                                 '5' = "Hispanic",
+                                 '6' = "White",
+                                 '7' = "Other")
+
+#Income
+THE.MASTER$Income <-  as.factor(THE.MASTER$Income)
+THE.MASTER$Income <- recode_factor(THE.MASTER$Income, 
+                                   '1' ="<25k",
+                                   '2' = "25-49k",
+                                   '3' = "50-74k",
+                                   '4' ="75-99k",
+                                   '5' = "100-150k",
+                                   '6' = "150k+")
+#Industry
+THE.MASTER$Industry <-  as.factor(THE.MASTER$Industry)
+THE.MASTER$Industry <- recode_factor(THE.MASTER$Industry,
+                                     '1' ="Banking & Financial Services",
+                                     '2' = "Education",
+                                     '3' = "Food & Beverage",
+                                     '4' ="Government",
+                                     '5' = "Healthcare", 
+                                     '6' = "Manufacturing",
+                                     '7' = "Media & Entertainment",
+                                     '8' = "Retail, Wholesale, & Distribution",
+                                     '9' = "Software & IT Services",
+                                     '10'= "Non-Profit",
+                                     '11'= "Other")
+#Job Function
+THE.MASTER$JobFunction <-  as.factor(THE.MASTER$JobFunction)
+THE.MASTER$JobFunction <- recode_factor(THE.MASTER$JobFunction,
+                                     '1' ="Accounting & Finance",
+                                     '2' = "Administrative",
+                                     '3' = "Arts & Design",
+                                     '4' ="Education",
+                                     '5' = "Engineering", 
+                                     '6' = "Information Technology",
+                                     '7' = "Marketing, Sales, & Business Development",
+                                     '8' = "Management",
+                                     '9' = "Operations",
+                                     '10' = "Other")
+
+#Degree
+THE.MASTER$Degree <-  as.factor(THE.MASTER$Degree)
+THE.MASTER$Degree <- recode_factor(THE.MASTER$Degree, 
+                                   '1' ="Associate",
+                                   '2' = "Bachelor",
+                                   '3' = "Master",
+                                   '4' ="Doctorate",
+                                   '5' = "Other")
+
+
+#Recode into Three categories
+##Accuracy Self
+THE.MASTER$Accuracy.Self.NEW[THE.MASTER$Accuracy.Self < 4] <- "Inaccurate"  
+THE.MASTER$Accuracy.Self.NEW[THE.MASTER$Accuracy.Self > 4] <- "Accurate"
+##Accuracy Coworker
+THE.MASTER$Accuracy.Co.NEW[THE.MASTER$Accuracy.Co < 4] <- "Inaccurate"   
+THE.MASTER$Accuracy.Co.NEW[THE.MASTER$Accuracy.Co > 4] <- "Accurate"
+
+TheMaster.matrix <- as.matrix(THE.MASTER[, c(7:38)])
+```
+
+#Table 1 Demographics
+```{r Table 1 Demographics, warning=FALSE}
+#Age
+mean(THE.MASTER$Age, na.rm = TRUE)
+sd(THE.MASTER$Age, na.rm = TRUE)
+
+#GENDER
+freqdist::freqdist(THE.MASTER$Gender)
+
+#Degree
+freqdist::freqdist(THE.MASTER$Degree)
+
+#Ethnicity
+freqdist::freqdist(THE.MASTER$Race)
+
+#Industry
+freqdist::freqdist(THE.MASTER$Industry)
+
+#INCOME
+freqdist::freqdist(THE.MASTER$Income)
+```
+
+#Table 2 HERO Correlations
+```{r HERO Correlations}
+#PsyCap.Self
+rcorr(TheMaster.matrix[, c(11, 7)], type = "pearson")
+rcorr(TheMaster.matrix[, c(11, 2)], type = "pearson")
+rcorr(TheMaster.matrix[, c(11, 1)], type = "pearson")
+rcorr(TheMaster.matrix[, c(11, 3)], type = "pearson")
+
+#PsyCap.C
+rcorr(TheMaster.matrix[, c(11, 8)], type = "pearson")
+rcorr(TheMaster.matrix[, c(11, 5)], type = "pearson")
+rcorr(TheMaster.matrix[, c(11, 4)], type = "pearson")
+rcorr(TheMaster.matrix[, c(11, 6)], type = "pearson")
+
+#Hope.Self
+rcorr(TheMaster.matrix[, c(13, 7)], type = "pearson")
+rcorr(TheMaster.matrix[, c(13, 2)], type = "pearson")
+rcorr(TheMaster.matrix[, c(13, 1)], type = "pearson")
+rcorr(TheMaster.matrix[, c(13, 3)], type = "pearson")
+
+#Hope.C
+rcorr(TheMaster.matrix[, c(13, 8)], type = "pearson")
+rcorr(TheMaster.matrix[, c(13, 5)], type = "pearson")
+rcorr(TheMaster.matrix[, c(13, 4)], type = "pearson")
+rcorr(TheMaster.matrix[, c(13, 6)], type = "pearson")
+
+#SE.Self
+rcorr(TheMaster.matrix[, c(14, 7)], type = "pearson")
+rcorr(TheMaster.matrix[, c(14, 2)], type = "pearson")
+rcorr(TheMaster.matrix[, c(14, 1)], type = "pearson")
+rcorr(TheMaster.matrix[, c(14, 3)], type = "pearson")
+
+#SE.C
+rcorr(TheMaster.matrix[, c(14, 8)], type = "pearson")
+rcorr(TheMaster.matrix[, c(14, 5)], type = "pearson")
+rcorr(TheMaster.matrix[, c(14, 4)], type = "pearson")
+rcorr(TheMaster.matrix[, c(14, 6)], type = "pearson")
+
+#Resilience.Self
+rcorr(TheMaster.matrix[, c(15, 7)], type = "pearson")
+rcorr(TheMaster.matrix[, c(15, 2)], type = "pearson")
+rcorr(TheMaster.matrix[, c(15, 1)], type = "pearson")
+rcorr(TheMaster.matrix[, c(15, 3)], type = "pearson")
+
+#Resilience.C
+rcorr(TheMaster.matrix[, c(15, 8)], type = "pearson")
+rcorr(TheMaster.matrix[, c(15, 5)], type = "pearson")
+rcorr(TheMaster.matrix[, c(15, 4)], type = "pearson")
+rcorr(TheMaster.matrix[, c(15, 6)], type = "pearson")
+
+#Optimism.Self
+rcorr(TheMaster.matrix[, c(16, 7)], type = "pearson")
+rcorr(TheMaster.matrix[, c(16, 2)], type = "pearson")
+rcorr(TheMaster.matrix[, c(16, 1)], type = "pearson")
+rcorr(TheMaster.matrix[, c(16, 3)], type = "pearson")
+
+#Optimism.C
+rcorr(TheMaster.matrix[, c(16, 8)], type = "pearson")
+rcorr(TheMaster.matrix[, c(16, 5)], type = "pearson")
+rcorr(TheMaster.matrix[, c(16, 4)], type = "pearson")
+rcorr(TheMaster.matrix[, c(16, 6)], type = "pearson")
+
+
+
+```
+
+
+#Table 3 Means, Sds, and Convergence
+```{r Table 2 - Means, Sds, and Convergence}
+#Means and SDs for all variables
+mean(THE.MASTER[, 17], na.rm = TRUE) #PSYCAP
+sd(THE.MASTER[, 17], na.rm = TRUE) 
+mean(THE.MASTER[, 18], na.rm = TRUE) #PSYCAP.C
+sd(THE.MASTER[, 18], na.rm = TRUE)
+
+mean(THE.MASTER[, 19], na.rm = TRUE) #PSYCAP.H.Self
+sd(THE.MASTER[, 19], na.rm = TRUE) 
+mean(THE.MASTER[, 23], na.rm = TRUE) #PSYCAP.H.CO
+sd(THE.MASTER[, 23], na.rm = TRUE)
+
+mean(THE.MASTER[, 20], na.rm = TRUE) #PSYCAP.SE.Self
+sd(THE.MASTER[, 20], na.rm = TRUE) 
+
+mean(THE.MASTER[, 24], na.rm = TRUE) #PSYCAP.SE.CO
+sd(THE.MASTER[, 24], na.rm = TRUE) 
+
+mean(THE.MASTER[, 21], na.rm = TRUE) #PSYCAP.R.Self
+sd(THE.MASTER[, 21], na.rm = TRUE) 
+
+mean(THE.MASTER[, 25], na.rm = TRUE) #PSYCAP.R.CO
+sd(THE.MASTER[, 25], na.rm = TRUE)
+
+mean(THE.MASTER[, 22], na.rm = TRUE) #PSYCAP.O.Self
+sd(THE.MASTER[, 22], na.rm = TRUE) 
+
+mean(THE.MASTER[, 26], na.rm = TRUE) #PSYCAP.O.CO
+sd(THE.MASTER[, 26], na.rm = TRUE) 
+
+mean(THE.MASTER[, 13], na.rm = TRUE) #JAWS.Self
+sd(THE.MASTER[, 13], na.rm = TRUE) 
+
+mean(THE.MASTER[, 14], na.rm = TRUE) #JAWS.CO
+sd(THE.MASTER[, 14], na.rm = TRUE)
+
+mean(THE.MASTER[, 8], na.rm = TRUE) #Adapt.Self
+sd(THE.MASTER[, 8], na.rm = TRUE) 
+
+mean(THE.MASTER[, 11], na.rm = TRUE) #Adapt.Co
+sd(THE.MASTER[, 11], na.rm = TRUE) 
+
+mean(THE.MASTER[, 7], na.rm = TRUE) #Proa.Self
+sd(THE.MASTER[, 7], na.rm = TRUE) 
+
+mean(THE.MASTER[, 10], na.rm = TRUE) #Proa.Co
+sd(THE.MASTER[, 10], na.rm = TRUE) 
+
+mean(THE.MASTER[, 9], na.rm = TRUE) #Prof.Self
+sd(THE.MASTER[, 9], na.rm = TRUE) 
+
+mean(THE.MASTER[, 12], na.rm = TRUE) #Prof.Co
+sd(THE.MASTER[, 12], na.rm = TRUE)
+
+mean(THE.MASTER[, 9], na.rm = TRUE) #TO.Self
+sd(THE.MASTER[, 9], na.rm = TRUE) 
+
+##Convergence
+rcorr(TheMaster.matrix[, c(11, 12)], type = "pearson")   #PSYCAP
+rcorr(TheMaster.matrix[, c(13, 17)], type = "pearson")   #PSY_H
+rcorr(TheMaster.matrix[, c(14, 18)], type = "pearson")   #PSY_SE
+rcorr(TheMaster.matrix[, c(15, 19)], type = "pearson")   #PSY_R
+rcorr(TheMaster.matrix[, c(16, 20)], type = "pearson")   #PSY_O
+rcorr(TheMaster.matrix[, c(7,  8)],   type = "pearson")  #JAWS
+rcorr(TheMaster.matrix[, c(2,  5)],   type = "pearson")  #ADAPT
+rcorr(TheMaster.matrix[, c(1,  4)],   type = "pearson") #PROA
+rcorr(TheMaster.matrix[, c(3,  6)],   type = "pearson") #PROF
+```
+
+#Table 4 MTMM Matrix
+```{r Reliability Diagonals Self/Self}
+#Create Reliability Dataset
+#Self-Reported
+##PsyCap
+PsyC_Alpha <- Scale.Final[, c(45:48,55:58)]
+alpha(PsyC_Alpha)
+
+##JAWS
+JAWS_Alpha <- ScaleData[, c(44:53,177:186)]
+alpha(JAWS_Alpha)
+
+##OADAPT
+OADAPT_Alpha <- ScaleData[, c(38:40, 171:173)]
+alpha(OADAPT_Alpha)
+
+##OPRO
+OPRO_Alpha <- ScaleData[, c(41:43, 174:176)]
+alpha(OPRO_Alpha)
+
+##OPROF
+OPROF_Alpha <- ScaleData[, c(35:37, 168:170)]
+alpha(OPROF_Alpha)
+
+##TI
+TI_Alpha <- ScaleData[, c(54:58, 187:191)]
+alpha(TI_Alpha)
+
+```
+
+```{r Reliability Diagonals Co-Co}
+#Create Reliability Dataset
+#Self-Reported
+##PsyCap
+PsyCap.C <- Scale.Final[, c(16:19, 35:38)]
+alpha(PsyCap.C)
+
+##JAWS
+JAWS.C <- ScaleData[, c(113:122, 246:255)]
+alpha(JAWS.C)
+
+##OADAPT
+OADAPT_Alpha.C <- ScaleData[, c(107:109, 240:242)]
+alpha(OADAPT_Alpha.C)
+
+##OPRO
+OPRO_Alpha.C <- ScaleData[, c(110:112, 243:245)]
+alpha(OPRO_Alpha.C)
+
+##OPROF
+OPROF_Alpha.C <- ScaleData[, c(237:239, 104:106)]
+alpha(OPROF_Alpha.C)
+
+##Turnover Intentions
+TI_Alpha.C <- ScaleData[, c(123:127, 256:260)]
+alpha(TI_Alpha.C)
+
+```
+
+```{r MonoMethod Block Self-Self}
+
+#SelfReport
+  ##PsyCap
+rcorr(TheMaster.matrix[, c(11, 7)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(11, 2)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(11, 1)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(11, 3)], type = "pearson")
+
+  ##JAWS
+rcorr(TheMaster.matrix[, c(7, 2)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(7, 1)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(7, 3)], type = "pearson")
+ 
+  ##OADAPT
+rcorr(TheMaster.matrix[, c(2, 1)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(2, 3)], type = "pearson") 
+
+##OPRO
+rcorr(TheMaster.matrix[, c(1, 3)], type = "pearson") 
+```
+
+```{r MonoMethod Block Co-Co}
+#Collateral Report
+##PsyCap
+rcorr(TheMaster.matrix[, c(12, 8)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(12, 5)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(12, 4)], type = "pearson")
+rcorr(TheMaster.matrix[, c(12, 6)], type = "pearson")
+
+##JAWS
+rcorr(TheMaster.matrix[, c(8, 5)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(8, 4)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(8, 6)], type = "pearson") 
+
+##OADAPT
+rcorr(TheMaster.matrix[, c(5, 4)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(5, 6)], type = "pearson") 
+
+##OPRO
+rcorr(TheMaster.matrix[, c(4, 6)], type = "pearson") 
+```
+
+```{r Validity Diagonals}
+
+##PsyCap
+rcorr(TheMaster.matrix[, c(19,20)], type = "pearson") 
+##JAWS
+rcorr(TheMaster.matrix[, c(4,13)], type = "pearson")
+##OADAPT
+rcorr(TheMaster.matrix[, c(2, 11)], type = "pearson") 
+##OPRO
+rcorr(TheMaster.matrix[, c(3, 12)], type = "pearson")
+##OPROF
+rcorr(TheMaster.matrix[, c(1, 10)], type = "pearson")
+
+
+
+```
+
+```{r HeteroTrait HeteroMethod Triangle}
+#PsyCap
+rcorr(TheMaster.matrix[, c(19, 13)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(19, 11)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(19, 12)], type = "pearson")
+rcorr(TheMaster.matrix[, c(19, 10)], type = "pearson")
+
+#JAWS
+rcorr(TheMaster.matrix[, c(4, 20)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(4, 11)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(4, 12)], type = "pearson")
+rcorr(TheMaster.matrix[, c(4, 10)], type = "pearson")
+
+
+##ODAPT
+rcorr(TheMaster.matrix[, c(2, 20)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(2, 13)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(2, 12)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(2, 12)], type = "pearson") 
+
+
+##OPROF
+rcorr(TheMaster.matrix[, c(3, 20)], type = "pearson")
+rcorr(TheMaster.matrix[, c(3, 13)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(3, 11)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(3, 10)], type = "pearson")
+
+
+##OPROF
+rcorr(TheMaster.matrix[, c(1, 20)], type = "pearson")
+rcorr(TheMaster.matrix[, c(1, 13)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(1, 11)], type = "pearson") 
+rcorr(TheMaster.matrix[, c(1, 12)], type = "pearson")
+
+```
+#Table 5 Self-Reported Predicting Work Outcomes
+```{r Self-Reported PsyCap Predicting Self-Reported and  Collateral-Reported Work Outcomes}
+attach(THE.MASTER)
+#Self-Self Overall
+Reg.PC.S <- lm(OPRO.Self ~
+         PsyCap.Self)    
+
+summary(Reg.PC.S)
+confint.lm(Reg.PC.S)
+
+#Self-Self Bias Correction
+Adjusted <- THE.MASTER %>% filter(Accuracy.Self.NEW == "Accurate")
+
+attach(Adjusted)
+Reg.PC.AC <- lm(OPROF.Self ~
+         PsyCap.Self)   
+
+summary(Reg.PC.AC)
+confint.lm(Reg.PC.AC)
+
+
+#Collateral-Report
+attach(THE.MASTER)
+Reg.PF.C <- lm(OPROF.C ~
+         PsyCap.Self)    
+
+summary(Reg.PF.C)
+confint.lm(Reg.PF.C)
+
+```
+
+#Table 6 Collateral-Reported Predicting Work Outcomes
+```{r message=FALSE, warning=FALSE, include=FALSE}
+attach(THE.MASTER)
+#Co-Co Overall
+Reg.PC.Co <- lm(OPROF.C~
+                PsyCap.C)    
+
+summary(Reg.PC.Co)
+confint.lm(Reg.PC.Co)
+
+#Co-Co Bias Correction
+Adjusted.C <- THE.MASTER %>% filter(Accuracy.Co.NEW  == "Accurate")
+attach(Adjusted.C)
+Reg.PC.C.AC <- lm(OPROF.C~
+                  PsyCap.C)    
+
+summary(Reg.PC.C.AC)
+confint.lm(Reg.PC.C.AC)
+
+#Co-Self Overall
+attach(THE.MASTER)
+Reg.PC.C.S <- lm(OPROF.Self~
+                 PsyCap.C)    
+
+summary(Reg.PC.C.S)
+confint.lm(Reg.PC.C.S)
+
+```
