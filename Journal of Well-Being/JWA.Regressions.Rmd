@@ -1,1 +1,263 @@
+---
+title: "JWA Regressions"
+output: html_notebook
+---
+```{r Set up}
+setwd("~/Documents/JWA/R")
+library(haven)
+library(psych)
+library(AutoModel)
+library(lm.beta)
+library(MBESS)
+library(sjstats)
+FINALDATA8K <- read_sav("FINALDATA8K.sav") 
+
+FINALDATA9K <- FINALDATA8K
+
+```
+
+```{r JAWS NE}
+attach(FINALDATA9K)
+PERMA.JAWS <- lm(JAWS_NE_Scale ~ 
+               PE_Scale + 
+               PEN_Scale + 
+               PREL_Scale +
+               PMEAN_Scale + 
+               PACCOM_Scale)
+summary(PERMA.JAWS)
+lm.beta::lm.beta(PERMA.JAWS)
+std_beta(PERMA.JAWS)
+
+PFW.JAWS <- lm(JAWS_NE_Scale ~ 
+               PE_Scale + 
+               PEN_Scale + 
+               PREL_Scale +
+               PMEAN_Scale + 
+               PACCOM_Scale + 
+               PHEALTH_Scale +
+               PMIND_Scale +
+               PPWE_Scale + 
+               PECON_Scale
+               )
+
+summary(PFW.JAWS)
+lm.beta::lm.beta(PFW.JAWS)
+std_beta(PFW.JAWS)
+
+```
+
+```{r Turnover Intentions}
+attach(FINALDATA9K)
+PERMA.TI <- lm(TURNOVER_Scale ~ 
+               PE_Scale + 
+               PEN_Scale + 
+               PREL_Scale +
+               PMEAN_Scale + 
+               PACCOM_Scale)
+summary(PERMA.TI)
+lm.beta::lm.beta(PERMA.TI)
+std_beta(PERMA.TI)
+
+PFW.TI <- lm(TURNOVER_Scale ~ 
+               PE_Scale + 
+               PEN_Scale + 
+               PREL_Scale +
+               PMEAN_Scale + 
+               PACCOM_Scale + 
+               PHEALTH_Scale +
+               PMIND_Scale +
+               PPWE_Scale + 
+               PECON_Scale
+               )
+
+summary(PFW.TI)
+lm.beta::lm.beta(PFW.TI)
+std_beta(PFW.TI)
+
+```
+
+```{r IADAPT}
+attach(FINALDATA9K)
+PERMA.IA <- lm(IADAPT_Scale ~ 
+               PE_Scale + 
+               PEN_Scale + 
+               PREL_Scale +
+               PMEAN_Scale + 
+               PACCOM_Scale)
+summary(PERMA.IA)
+lm.beta::lm.beta(PERMA.IA)
+std_beta(PERMA.IA)
+
+PFW.IA <- lm(IADAPT_Scale ~ 
+               PE_Scale + 
+               PEN_Scale + 
+               PREL_Scale +
+               PMEAN_Scale + 
+               PACCOM_Scale + 
+               PHEALTH_Scale +
+               PMIND_Scale +
+               PPWE_Scale + 
+               PECON_Scale
+               )
+
+summary(PFW.IA)
+lm.beta::lm.beta(PFW.IA)
+std_beta(PFW.IA)
+
+```
+
+```{r OADAPT}
+attach(FINALDATA9K)
+PERMA.OA <- lm(OADAPT_Scale ~ 
+               PE_Scale + 
+               PEN_Scale + 
+               PREL_Scale +
+               PMEAN_Scale + 
+               PACCOM_Scale)
+summary(PERMA.OA)
+lm.beta::lm.beta(PERMA.OA)
+std_beta(PERMA.OA)
+
+PFW.OA <- lm(OADAPT_Scale ~ 
+               PE_Scale + 
+               PEN_Scale + 
+               PREL_Scale +
+               PMEAN_Scale + 
+               PACCOM_Scale + 
+               PHEALTH_Scale +
+               PMIND_Scale +
+               PPWE_Scale + 
+               PECON_Scale
+               )
+
+summary(PFW.OA)
+lm.beta::lm.beta(PFW.OA)
+std_beta(PFW.OA)
+
+```
+
+```{r Predictive Validity Turnover}
+attach(FINALDATA9K)
+Model1 <- lm(TURNOVER_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale)
+summary(Model1)
+lm.beta::lm.beta(Model1)
+std_beta(Model1)
+
+Model2 <- lm(TURNOVER_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale +
+               DPF_Scale)
+
+summary(Model2)
+lm.beta::lm.beta(Model2)
+std_beta(Model2)
+
+```
+
+```{r Predictive I<T<O Adaptivity}
+attach(FINALDATA9K)
+Model1 <- lm(IADAPT_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale)
+
+Model1 <- lm(TADAPT_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale)
+
+Model1 <- lm(OADAPT_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale)
+summary(Model1)
+lm.beta::lm.beta(Model1)
+std_beta(Model1)
+
+Model2 <- lm(IADAPT_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale +
+               DPF_Scale)
+
+Model2 <- lm(TADAPT_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale +
+               DPF_Scale)
+
+Model2 <- lm(OADAPT_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale +
+               DPF_Scale)
+
+summary(Model2)
+lm.beta::lm.beta(Model2)
+std_beta(Model2)
+
+```
+
+```{r Predictive Validity Organizational Prof}
+attach(FINALDATA9K)
+Model1 <- lm(OPROF_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale)
+summary(Model1)
+lm.beta::lm.beta(Model1)
+std_beta(Model1)
+
+Model2 <- lm(OPROF_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale +
+               DPF_Scale)
+
+summary(Model2)
+lm.beta::lm.beta(Model2)
+std_beta(Model2)
+
+```
+
+```{r Predictive I<T<O Proactivity}
+attach(FINALDATA9K)
+Model1 <- lm(IPROACT_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale)
+
+Model1 <- lm(TPROACT_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale)
+
+Model1 <- lm(OPROACT_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale)
+summary(Model1)
+lm.beta::lm.beta(Model1)
+std_beta(Model1)
+
+Model2 <- lm(IPROACT_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale +
+               DPF_Scale)
+
+Model2 <- lm(TPROACT_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale +
+               DPF_Scale)
+
+Model2 <- lm(OPROACT_Scale ~ 
+               SWLS_Scale + 
+               PSYCAP_Scale +
+               DPF_Scale)
+
+summary(Model2)
+lm.beta::lm.beta(Model2)
+std_beta(Model2)
+
+
+```
+
+
+
+
+
+
+
+
 
