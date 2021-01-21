@@ -1,0 +1,118 @@
+---
+title: "Data Science Cheatsheet"
+author: "Scott I. Donaldson, PhD"
+date: "6/6/2020"
+output: html_document
+---
+#Data Management
+```{r Packages}
+library(tidyverse)
+
+```
+
+```{r Importing and Exporting Data}
+#Excel
+  ## read in the first worksheet from the workbook myexcel.xlsx
+  ## first row contains variable names
+library(xlsx)
+mydata <- read.xlsx("c:/myexcel.xlsx", 1)
+  ## read in the worksheet named mysheet
+mydata <- read.xlsx("c:/myexcel.xlsx", sheetName = "mysheet")
+  ##Exporting data
+library(xlsx)
+write.xlsx(mydata, "c:/mydata.xlsx")
+
+#SPSS
+library(haven)
+dataset <- read_sav(NULL)
+View(dataset)
+  ##Exporting data in SPSS
+# write out text datafile and an SPSS program to read it
+library(foreign)
+write.foreign(mydata, "c:/mydata.xlsd", "c:/mydata.sav",   package="SPSS")
+```
+
+```{r Data Cleaning and Transformation}
+#Viewing Data  
+names(mydata) ## list the variables in mydata
+str(mydata) ## list the structure of mydata
+levels(mydata$v1) ## list levels of factor v1 in mydata
+
+#Value Labels for Nominal variables
+  ## variable v1 is coded 1, 2 or 3
+  ## we want to attach value labels 1=red, 2=blue, 3=green
+mydata$v1 <- factor(mydata$v1,
+levels = c(1,2,3),
+labels = c("red", "blue", "green"))
+
+#Rename a variable
+rename(mydata, newname=oldname)
+
+#Recode Values in a variable
+mydata$v1[mydata$v1==99] <- NA #It was 99 and now it is NA
+
+#Missing Data
+is.na(x) # returns TRUE of x is missing
+na.rm=TRUE #exclude from analyses
+mydata[!complete.cases(mydata),] # list rows of data that have missing values
+newdata <- na.omit(mydata) # create new dataset without missing data
+
+#Recoding Variables
+mydata$agecat <- ifelse(mydata$age > 70,
+c("older"), c("younger"))
+mydata$agecat[age > 75] <- "Elder"
+mydata$agecat[age > 45 & age <= 75] <- "Middle Aged"
+mydata$agecat[age <= 45] <- "Young"
+detach(mydata)
+
+#Generate a sequence
+seq(from , to, by)
+
+#Filter Rows
+filter(mydata, PERMA==2)
+
+#Arrange
+arrange(mydata, variable, variable)
+arrange(mydata, desc(variable))
+
+#Select
+select(mydata, variable, variable)
+select(mydata, variable, -variable) #Drop a variable
+
+#Add New Variables
+mutate(mydata, 
+       newvariable = (Scott + Donaldson)) #Use transmute if you only want to keep the new variables
+                                            
+
+
+
+```
+
+#Statistics
+```{r Descriptives}
+#Basic
+range()
+sum()
+min() max()
+
+#Central Tendency
+mean()
+sd()
+median()
+
+
+```
+
+```{r EFA and CFA}
+
+```
+
+```{r IRT}
+
+```
+
+
+#Data Visualization
+```{r Data Visualizations}
+
+```
