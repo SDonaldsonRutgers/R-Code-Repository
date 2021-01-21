@@ -1,0 +1,703 @@
+---
+title: "Tobacco-Use Prevention Education Program: Statewide Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: cerulean
+    orientation: rows
+    vertical_layout: fill
+    source_code: embed
+    social: menu
+---
+
+```{r Data Management}
+library(flexdashboard)
+library(knitr)
+library(DT)
+library(rpivotTable)
+library(ggplot2)
+library(plotly)
+library(plyr)
+library(dplyr)
+library(readxl)
+library(tidyverse)
+library(crosstalk)
+library(leaflet)
+library(htmltools)
+library(rgdal)
+library(geojsonio)
+library(rjson)
+library(scatterD3)
+library(scales)
+library(formattable)
+
+
+Master <- read_excel("~/Desktop/UCSD/TUPE/Evaluation/Dashboard/CDE.ComprehensiveData.xlsx", 
+                     sheet = "Master")
+ReachStats <- read_excel("~/Desktop/UCSD/TUPE/Evaluation/Dashboard/CDE.ComprehensiveData.xlsx",
+                     sheet = "ReachStatistics")
+
+Datasources <- read_excel("~/Desktop/UCSD/TUPE/Evaluation/Dashboard/CDE.EvaluationData.xlsx", 
+                     sheet = "Method")
+
+
+Master$Agency             <- as.factor(Master$Agency)
+Master$Region             <- as.factor(Master$Region)
+Master$Location           <- as.factor(Master$Location)
+Master$ReportingFrequency <- as.factor(Master$ReportingFrequency)
+Master$ExternalEvaluator  <- as.factor(Master$ExternalEvaluator)
+Master$TotalBudget        <- as.numeric(Master$TotalBudget)
+Master$EvaluationBudget   <- as.numeric(Master$EvaluationBudget)
+Master$ADA                <- as.numeric(Master$ADA)
+Master$County             <- as.factor(Master$County)
+
+#ReachStatistics
+ReachStats$Agency        <- as.factor(ReachStats$Agency)
+ReachStats$ProgramArea   <- as.factor(ReachStats$ProgramArea)
+ReachStats$SchoolParents <- as.numeric(ReachStats$SchoolParents)
+ReachStats$AvgDoseMin    <- as.numeric(ReachStats$AvgDoseMin)
+ReachStats$TotalDoseMin  <- as.numeric(ReachStats$TotalDoseMin)
+ReachStats$Sessions      <- as.numeric(ReachStats$Sessions)
+ReachStats$Years         <- as.numeric(ReachStats$Years )
+
+#Data sources
+Datasources$Grantee           <- as.factor(Datasources$Grantee)
+Datasources$Attendance        <- as.numeric(Datasources$Attendance)
+Datasources$`Process Log`     <- as.numeric(Datasources$`Process Log`)
+Datasources$`Meeting Notes`   <- as.numeric(Datasources$`Meeting Notes`)
+
+```
+
+Map
+===========================================
+
+```{r Cholorpleth Map}
+Cali_CT <- Master[, c(1:4, 28)]
+
+coordinates(Cali_CT) = c("Lng","Lat")
+crs.geo1 = CRS("+proj=longlat")
+proj4string(Cali_CT) = crs.geo1
+
+plot(Cali_CT, pch = 20, col = "steelblue")
+
+Cali <- geojsonio::geojson_read("/Users/ScottDonaldson/Desktop/UCSD/TUPE/Evaluation/Dashboard/TUPEDashboards/Files/Cali.json",
+                                what = "sp")
+
+proj4string(Cali) = crs.geo1
+
+cali_agg <- aggregate(x=Cali_CT["TotalReach"], by=Cali, FUN=sum)
+
+bins <- c(0, 13000, 33000, 150000, 400000, 800000)
+pal <- colorBin("Dark2", domain = Cali_CT$County, bins = bins)
+
+labels <- sprintf(
+  "<strong>%s</strong>",
+  prettyNum(cali_agg$TotalReach, big.mark = ",") 
+) %>% lapply(htmltools::HTML)
+
+TUPEMAP <- leaflet(cali_agg) %>%
+           addTiles() %>%  
+           addMarkers(lng          = Master$Lng, 
+                      lat          = Master$Lat,
+                      label        = Master$Agency,
+                      labelOptions = (textsize = "50px")) %>% 
+            setView(-119.2321, 36.9859, zoom = 6.7) %>% 
+            addProviderTiles(providers$Esri.NatGeoWorldMap) %>% 
+addPolygons(stroke = TRUE,opacity = 1,
+            fillOpacity = 0.5, 
+            smoothFactor = 0.5, 
+            color="black",
+            fillColor = ~pal(TotalReach),
+            weight = 1,
+            label = labels,
+            labelOptions = labelOptions(style = list("font-weight" =                            "normal", 
+                            padding = "3px 8px"),
+                            textsize = "15px",
+                            direction = "auto")) %>% 
+  addLegend(values=~TotalReach,
+            pal=pal,
+            title="Projected County-Level Reach",
+            position = "bottomleft",
+            na.label = "NA = Non-TUPE County")
+TUPEMAP
+
+```
+
+Demographics
+===========================================
+
+Row {data-height=75}
+-------------------------------------------
+
+### Projected Statewide Reach 
+```{r}
+gauge(sum(Master$TotalReach),
+      min = 0,
+      max = 4000000)
+
+```
+
+### School Districts
+```{r}
+valueBox(prettyNum(sum(Master$Districts), 
+                   big.mark = ","),
+         icon    = 'fa-school',
+         color   = "orange")
+```
+
+
+### Schools
+```{r}
+valueBox(sum(Master$Schools),
+         icon    = 'fa-pencil-alt',
+         color   = "#60E62E")
+```
+
+
+### Projected Statewide TUPE Activities 
+```{r}
+valueBox(sum(Master$TotalActivities),
+         icon    = 'fa-globe',
+         color   = "#E6642E")
+```
+
+Row {.tabset}
+----------------------------------------------------------------
+
+### Demographics Table {data-height=100} 
+```{r}
+attach(Master)
+Pivot <- Master[, c(1,2, 5:9)]
+rpivotTable(Pivot,
+            rows = "Location",
+            cols = "Region",
+            rendererName = "Horizontal Stacked Bar Chart")
+```
+
+Activities
+===========================================
+
+### Program Activities Profile 
+
+```{r Activities Profile, fig.height=1000, fig.width=500}
+Activities <- as.data.frame(Master[, c(1,2,27,12,14,18,22,25:26)])
+
+PA <- formatter("span", 
+        style = x ~ style(color = ifelse(x > 10, "green", 
+                                  ifelse(x < 4, "red", 
+                                         "black"))))
+
+as.datatable(  
+formattable(Activities,
+            list(PartnerAgencies = PA,
+                 TotalActivities = color_bar(color = "#2EE6E2"),
+                 Prevention      = proportion_bar(color = "lightgray"),
+                 Intervention    = proportion_bar(color = "lightgray"),
+                 Cessation       = proportion_bar(color = "lightgray"),
+                 Staff           = color_tile("transparent",
+                                              "lightpink"),
+                 Family          = color_tile("gray",
+                                              "purple"))),
+              rownames = FALSE,
+              extensions= 'Buttons', 
+              style="bootstrap", 
+              class='hover cell-border stripe',
+              filter = "top",
+              editable = 'cell',
+              width=1000,
+              height = 500,
+              options=list(
+                 deferRender=TRUE,
+                 dom='Bfrtip',
+                 order =list(2, 'desc'),
+                 scrollY=300, 
+                 scroller=TRUE,
+                 buttons = c('csv', 'excel', 'print')))
+```
+
+Reach Profile 
+===========================================
+
+Row {.tabset}
+-------------------------------------
+
+### Student Services   
+
+```{r Students Reach, fig.height=800, fig.width=1000}
+StudentReach <- pivot_longer(ReachStats, 
+                            cols = c(5:35),
+                            names_to = "Target_Population",
+                            values_to = "Count",
+                            values_drop_na = TRUE)
+
+StudentReach <- StudentReach[which(
+                StudentReach$ProgramArea=='NeedsAssessment' |  
+                StudentReach$ProgramArea=='Prevention' |
+                StudentReach$ProgramArea=='PreventionIntervention' |
+                StudentReach$ProgramArea=='PreventionInterventionYD' |
+                StudentReach$ProgramArea=='PreventionYD' |
+                StudentReach$ProgramArea=='PreventionInterventionCessation' |
+                StudentReach$ProgramArea=='Intervention' |
+                StudentReach$ProgramArea=='InterventionYD' |
+                StudentReach$ProgramArea=='InterventionCessation' |
+                StudentReach$ProgramArea=='InterventionYD' |
+                StudentReach$ProgramArea=='Cessation' |
+                StudentReach$ProgramArea=='CessationYD' |
+                StudentReach$ProgramArea=='YouthDevelopment'),
+                c(1,3,4,24:27, 34:36)
+                ]
+
+Student_reach <- SharedData$new(StudentReach, ~ActivityName)
+
+bscols(widths = c(2,10),
+      filter_select("AG",
+                    "Agency",
+                    Student_reach,
+                    ~Agency),
+      ggplotly(ggplot(data=Student_reach, 
+                 aes(x= reorder(ProgramArea, -Count, FUN = sum), 
+                     y=Count, 
+                     fill=Target_Population,
+                     na.rm = TRUE)) +
+          geom_bar(stat="identity",
+                   position = "stack") +
+          scale_y_continuous(limits = c(0, 150000),
+                             breaks = c(2000,
+                                        10000,
+                                        20000,
+                                        50000,
+                                        100000,
+                                        150000
+                                        )) +
+          theme_classic() +
+          labs(title = "Student Reach Profile",
+               x     = "Program Area",
+               y     = "#Students") +
+          guides(fill=FALSE) +
+          scale_x_discrete(labels=c("Prev",
+                                    "PrevYD",
+                                    "Cess",
+                                    "Int",
+                                    "IntYD",
+                                    "YD",
+                                    "PrevInt",
+                                    "PrevIntCess",
+                                    "CessYD",
+                                    "PrevIntYD",
+                                    "IntCess",
+                                    "Needs")),
+          width = 1200,
+          height = 500) 
+)
+
+```
+
+```{r Student Datatable}
+formatRound(datatable(Student_reach,
+              extensions= c('Buttons', 'Scroller'), 
+              style="bootstrap", 
+              class='hover cell-border stripe',
+              filter = "top",
+              editable = 'cell',
+              width=1000,
+              height = 500,
+              options=list(
+                 deferRender=TRUE,
+                 dom='Bfrtip',
+                 scroller = TRUE,
+                 buttons = c('csv', 'excel', 'print'))),
+              mark =",",
+              digits = 1,
+              columns = c(5:10)
+
+)
+
+
+```   
+
+### Family and Community   
+
+```{r Family Reach, fig.height=800, fig.width=1000}
+ParentReach <- pivot_longer(ReachStats, 
+                       cols = c(36:54),
+                       names_to = "Target_Population",
+                       values_to = "Count")
+
+ParentReach <- ParentReach[which(ParentReach$ProgramArea=="Family"),
+                           c(1,3,4,36:39, 46:48)]
+
+Family_reach <- SharedData$new(ParentReach, ~ActivityName)
+
+
+bscols(widths = c(2,10),
+      filter_select("AG",
+                    "Agency",
+                    Family_reach,
+                    ~Agency),
+       ggplotly(ggplot(data=Family_reach, 
+                 aes(x=Target_Population, 
+                     y=Count, 
+                     fill=Agency,
+                     na.rm = TRUE)) +
+          geom_bar(stat="identity",
+                   position = "stack") +
+          scale_y_continuous(limits = c(0, 100000),
+                             breaks = c(0, 
+                                        2000,
+                                        10000,
+                                        20000,
+                                        30000,
+                                        40000,
+                                        50000,
+                                        75000,
+                                        100000),
+                             labels = comma) +
+          scale_x_discrete(labels=c("AA",
+                                    "Armenian",
+                                    "Asian",
+                                    "Cont",
+                                    "Fost.",
+                                    "FRPM",
+                                    "Pub.",
+                                    "Girls",
+                                    "Hisp.",
+                                    "Home.",
+                                    "LGTBQ",
+                                    "LowSes",
+                                    "Military",
+                                    "NA",
+                                    "New",
+                                    "NH/PI",
+                                    "NT",
+                                    "Parents",
+                                    "Users")) +
+          guides(fill=FALSE) +
+          theme_classic() +
+          labs(title = "Parents Reach Profile",
+               x     = "Target Population",
+               y     = "#Participants"),
+          width = 1400,
+          height = 600) 
+
+            )
+
+
+```
+
+```{r Family Datatable}
+formatRound(datatable(Family_reach,
+              extensions= c('Buttons', 'Scroller'), 
+              style="bootstrap", 
+              class='hover cell-border stripe',
+              filter = "top",
+              editable = 'cell',
+              width=1000,
+              height = 500,
+              options=list(
+                 deferRender=TRUE,
+                 dom='Bfrtip',
+                 scroller = TRUE,
+                 buttons = c('csv', 'excel', 'print'))),
+              mark =",",
+              digits = 1,
+              columns = c(5:10)
+
+)
+
+``` 
+
+### Staff Professional Development   
+
+```{r Staff Reach, fig.height=800, fig.width=1000}
+StaffReach <- pivot_longer(ReachStats, 
+                       cols = c(61:64),
+                       names_to = "Target_Population",
+                       values_to = "Count")
+
+StaffReach <- StaffReach[which(StaffReach$ProgramArea=="Staff"),
+                           c(1,3,4,55:63)]
+
+staff_reach <- SharedData$new(StaffReach, ~ActivityName)
+
+bscols(widths = c(2,10),
+      filter_select("AG",
+                    "Agency",
+                    staff_reach,
+                    ~Agency),
+       ggplotly(ggplot(data=staff_reach, 
+                 aes(x=Target_Population, 
+                     y=Count, 
+                     fill=Agency,
+                     na.rm = TRUE)) +
+       geom_bar(stat="identity",
+                position = "stack") +
+                   scale_y_continuous(limits = c(0, 40000),
+                          breaks = seq(0, 40000, 5000)) +
+       scale_x_discrete(labels=c("Non-TUPE Certified",
+                                 "Non-TUPE Classified",
+                                 "TUPE Certified",
+                                 "TUPE Classified")) +
+          guides(fill=FALSE) +
+          theme_classic() +
+          labs(title = "Staff Reach Profile",
+               x     = "Target Population",
+               y     = "#Participants"),
+          width = 1000,
+          height = 600) 
+
+
+          
+)
+
+```
+
+```{r Staff Datatable}
+formatRound(datatable(staff_reach,
+              extensions= c('Buttons', 'Scroller'), 
+              style="bootstrap", 
+              class='hover cell-border stripe',
+              filter = "top",
+              editable = 'cell',
+              width=1000,
+              height = 500,
+              options=list(
+                 deferRender=TRUE,
+                 dom='Bfrtip',
+                 scroller = TRUE,
+                 buttons = c('csv', 'excel', 'print'))),
+              mark =",",
+              digits = 1,
+              columns = c(5:10)
+
+)
+
+``` 
+    
+Evaluation {data-orientation=columns}  
+===========================================
+
+Column {data-width=500}
+-------------------------------------
+    
+### Continuous Quality Improvement Rubric 
+    
+```{r, out.width="750px", out.height="750px"}
+
+knitr::include_graphics("/Users/ScottDonaldson/Desktop/UCSD/TUPE/Evaluation/Dashboard/TUPEDashboards/FIles/Rubric.pdf")
+
+
+```
+   
+Column {.tabset data-width=500}
+-------------------------------------
+
+### Data Sources {data-height=200}
+
+```{r Datamethods Crosstalk}
+
+attach(Datasources)
+
+DS <- pivot_longer(Datasources, 
+                       cols = c(2:27),
+                       names_to = "DataSource",
+                       values_to = "Count",
+                       values_drop_na = TRUE)
+
+DS$TOTAL.GRANTEE <- round(DS$TOTAL.GRANTEE, digits = 1)
+DS$Count <- round(DS$Count, digits = 1)
+
+DS <- DS[c(1:284), ]
+
+
+DataSources_shared <- SharedData$new(DS, ~Grantee)
+
+bscols(ggplotly(ggplot(data=DataSources_shared, 
+                 aes(x= reorder(Grantee, -TOTAL.GRANTEE, FUN = sum), 
+                     y=Count, 
+                     fill=DataSource,
+                     na.rm = TRUE)) +
+       geom_bar(stat="identity",
+                position = "stack") +
+                   scale_y_continuous(limits = c(0, 10),
+                          breaks = c(0, 
+                                     2,
+                                     4,
+                                     6,
+                                     8,
+                                     10)) +
+       scale_x_discrete(labels=c()) +
+          guides(fill=FALSE) +
+          theme_classic() +
+          labs(x     = "Agency",
+               y     = "#Methods"),
+          width = 1000,
+          height = 600)
+)
+
+```
+
+```{r Data Methods Table}
+formatRound(datatable(DataSources_shared,
+              extensions= c('Buttons', 'Scroller'), 
+              style="bootstrap", 
+              class='hover cell-border stripe',
+              filter = "top",
+              editable = 'cell',
+              width=1000,
+              height = 500,
+              options=list(
+                 deferRender=TRUE,
+                 dom='Bfrtip',
+                 scroller = TRUE,
+                 buttons = c('csv', 'excel', 'print'))),
+              mark =",",
+              digits = 1,
+              columns = c(5:10)
+
+)
+    
+```
+   
+### Continuous Quality Improvement Scores 
+
+```{r QI Scores}
+
+QI <-  ggplotly(ggplot(Master,
+       aes(x=Agency,
+           y=QIScore,
+           fill=Agency)) + 
+       geom_col() +
+       theme_classic() +
+       theme(axis.ticks = element_blank(), axis.text.x = element_blank()) +
+       labs(x     = "Local Educational Agency",
+            y     = "Quality Improvement Score") +
+          guides(fill=FALSE)
+       
+)
+
+QI
+
+```   
+ 
+### Evaluation Reporting  
+    
+```{r Reporting, fig.width=300}
+Reporting <- plot_ly(Master, 
+               labels = ~ReportingFrequency,
+               type   = 'pie')
+Reporting <- Reporting  %>% layout(title = 
+                                   'Evaluation Reporting Frequency',
+                                    xaxis = list(showgrid = FALSE, 
+                                                 zeroline = FALSE, 
+                                                 showticklabels = FALSE),
+                                    yaxis = list(showgrid = FALSE, 
+                                                 zeroline = FALSE, 
+                                                 showticklabels = FALSE))
+
+Reporting
+```
+
+### External 
+
+```{r External by QI Scores}
+ggplot(Master, aes(x=ExternalEvaluator,
+                   y=QIScore)) + 
+    geom_bar(position="dodge", stat="identity")
+
+
+
+```
+
+
+Summary {data-orientation=columns} 
+===========================================
+
+Column
+-------------------------------------
+    
+### __Pilot Technical Assistance Summary (2020)__
+    
+1. Grantee Kick-Off Presentations
+  -	Coding and analysis of 10 grantee project plans
+  -	Scheduled and completed one hour Kick-Off presentations with              each grantee
+  -	Presentations included information about background                       characteristics, local needs, organizational structure, reach             profile based on ADA, and UCSD’s comprehensive evaluation                 approach
+
+2. Grantee Project Plan Summaries
+  -Each grantee was provided an Excel file that outlined each of             their proposed activities:
+      Program area
+      -	Type of activity
+      -	Year in the grant cycle
+      -	Average minutes per activity
+      -	Total dosage in hours
+      -	Average participants
+      -	Total participants
+      -	Agency partners
+      -	TA activities
+      -	Measurable objectives
+      -	Assessment tools
+      -	Evaluation goals
+      -	Process and outcome measures
+      -	Best practices
+      -	Reach statistics profile based on target recipients
+      -	Total reach for each activity
+      -	Reach as a function of ADA
+      -	Six charts to help visualize their program plan
+
+3. Brief Report Summaries
+
+4. SMART Template
+    -For each planned activity and through a process and outcome                              evaluation     lens, we organized five critiera based on the SMART                      (e.g.,      specific,        measurable, actionable, revelant, and timely)               template:
+    -State the measurable objective
+      -e.g. Student will receive the Stanford TPT 
+    -Standards of performance
+      -e.g. Stanford TPT will be implemented in 8/10 school sites in        District X
+    -Evaluation tools
+      -e.g. Monthly activity report 
+    -Quality improvement strategy
+    -Check monthly activity report to hold site coordinators                   accountable
+    -Incentivize and reward performance for high-perfoming                     coordinators
+    -Time
+        -e.g., monthly check-ins
+    -Met with a select few grantees and moderated the SMART process
+
+5. Developed a Process Tracking Tool
+
+6. Performance Indicator Metrics Library
+    -	Family Feedback Tool
+    -	Grantee Satisfaction Tool
+    -	School Connectedness Scale
+    -	Staff Feedback Tool
+    -	TUPE Site Coordinator Tool
+    -	TUPE pre/post Student Assessment
+    -	TUPE Student Well-Being Tool
+    -	Youth Development Tool
+
+Column
+-------------------------------------
+    
+### __Comprehensive Review of Project Plans__
+
+Data collection for the comprehensive review and recommendations of TUPE project plans was divided into three sections: demographics, implementation/activity/reach profiles, and evaluation. The UCSD Evaluation Team coded each grant application for relevant information in each section, such as region, location, ADA, # of activities across student service areas, among others. In terms of evaluation, the UCSD Evaluation Team created a TUPE-specific Quality Improvement Rubric with criteria and scores for each grantee. We hope this tool provides a useful conceptual map of the TUPE program across important areas of evaluation, design, and measurement.
+
+1. _Map_
+-Page 1 includes a cholorpleth map of grantee by county by projected county-level reach. It is important to note that reach numbers were calculated based on the unduplicated total within activities, and projected reach statistics are aggreated at the county-level.
+
+2. _Demographics_
+-Page 2 shows an interactive demographics table and program activitie profile. The HTML widgets allow for flexible pivoting of included variables and several visualizations types.
+
+3. _Reach Profile_
+-Page 3 contains a reach statistics profile for student services, family and community, and staff professional development. The plots allow for    subsetting of indivudal grantees' either in the fiter tab or by selecting rows in the data table feature. In addition, reach is visuzalized by target population and program area (these are abbreviated on the x axis).
+
+4. _Evaluation_
+-Page 4 displays the continuous quality improvement rubric that was used to score grantees. The tabset charts on the right column show the scores in addition to data sources that were used at each local educational agency. The final two tabs display pie charts of evaluation reporting frequency and external evaluators.
+     
+Please reach out to Scott Donaldson (sidonaldson@health.ucsd.edu) with any questions about the data visualization dashboard.
+
+Sincerely,
+
+UCSD Evaluation Team
+
+```{r UCSD Team, out.width="500px", out.height="500px"}
+
+include_graphics(knitr::include_graphics("/Users/ScottDonaldson/Desktop/UCSD/TUPE/Evaluation/Dashboard/TUPEDashboards/FIles/Scott.pdf"))
+
+```

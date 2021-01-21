@@ -1,0 +1,398 @@
+---
+title: "PlotsforDash"
+author: "Scott I. Donaldson, PhD"
+date: "12/7/2020"
+output: html_document
+---
+
+```{r Data Management}
+library(flexdashboard)
+library(knitr)
+library(DT)
+library(rpivotTable)
+library(ggplot2)
+library(plotly)
+library(plyr)
+library(dplyr)
+library(readxl)
+library(tidyverse)
+library(crosstalk)
+library(leaflet)
+library(htmltools)
+library(rgdal)
+library(geojsonio)
+library(rjson)
+library(scatterD3)
+
+Master <- read_excel("~/Desktop/CDE.ComprehensiveData.xlsx", 
+                     sheet = "Master")
+ReachStats <- read_excel("~/Desktop/CDE.ComprehensiveData.xlsx", 
+                     sheet = "ReachStatistics")
+
+Master$Agency             <- as.factor(Master$Agency)
+Master$Region             <- as.factor(Master$Region)
+Master$Location           <- as.factor(Master$Location)
+Master$ReportingFrequency <- as.factor(Master$ReportingFrequency)
+Master$ExternalEvaluator  <- as.factor(Master$ExternalEvaluator)
+Master$TotalBudget        <- as.numeric(Master$TotalBudget)
+Master$EvaluationBudget   <- as.numeric(Master$EvaluationBudget)
+Master$ADA                <- as.numeric(Master$ADA)
+Master$County             <- as.factor(Master$County)
+
+#ReachStatistics
+ReachStats$Agency        <- as.factor(ReachStats$Agency)
+ReachStats$ProgramArea   <- as.factor(ReachStats$ProgramArea)
+ReachStats$SchoolParents <- as.numeric(ReachStats$SchoolParents)
+ReachStats$AvgDoseMin    <- as.numeric(ReachStats$AvgDoseMin)
+
+
+```
+```{r Cholorpleth Map}
+attach(Master)
+
+Cali <- geojsonio::geojson_read("/Users/ScottDonaldson/Desktop/Cali.json",
+                                what = "sp")
+
+
+bins <- c(0, 13000, 33000, 150000, Inf)
+pal <- colorBin("Dark2", domain = Master$TotalReach, bins = bins)
+
+
+
+TUPEMAP <- leaflet(Cali) %>%
+           addTiles() %>%  
+           addMarkers(lng          = Master$Lng, 
+                      lat          = Master$Lat,
+                      label        = Master$Agency,
+                      labelOptions = (textsize = "50px")) %>%
+            setView(-119.2321, 36.9859, zoom = 5.9) %>% 
+            addProviderTiles(providers$Esri.NatGeoWorldMap) %>% 
+            addPolygons(stroke = TRUE,
+                        opacity = 1,
+                        fillOpacity = 0.5, 
+                        smoothFactor = 0.5,
+                        color="black",
+                        fillColor = ~pal(Master$TotalReach),
+                                    weight = 1,
+                        highlightOptions = TRUE) %>%
+            addLegend(values=~Master$TotalReach,
+                      pal=pal,
+                      title="Proposed Project Reach",
+                      position = "topright")
+
+TUPEMAP
+
+
+
+
+
+```
+```{r Student Crosstalk}
+StudentReach <- pivot_longer(ReachStats, 
+                            cols = c(5:35),
+                            names_to = "Target_Population",
+                            values_to = "Count",
+                            values_drop_na = TRUE)
+
+StudentReach <- StudentReach[which(
+                StudentReach$ProgramArea=='NeedsAssessment' |  
+                StudentReach$ProgramArea=='Prevention' |
+                StudentReach$ProgramArea=='PreventionIntervention' |
+                StudentReach$ProgramArea=='PreventionInterventionYD' |
+                StudentReach$ProgramArea=='PreventionYD' |
+                StudentReach$ProgramArea=='PreventionInterventionCessation' |
+                StudentReach$ProgramArea=='Intervention' |
+                StudentReach$ProgramArea=='InterventionYD' |
+                StudentReach$ProgramArea=='InterventionCessation' |
+                StudentReach$ProgramArea=='InterventionYD' |
+                StudentReach$ProgramArea=='Cessation' |
+                StudentReach$ProgramArea=='CessationYD' |
+                StudentReach$ProgramArea=='YouthDevelopment'),
+                c(1,3,4,24:27, 34:36)
+                ]
+
+Student_reach <- SharedData$new(StudentReach, ~ActivityName)
+
+bscols(widths = c(2,10),
+      filter_select("AG",
+                    "Agency",
+                    Student_reach,
+                    ~Agency),
+      ggplotly(ggplot(data=Student_reach, 
+                 aes(x= reorder(ProgramArea, -Count, FUN = sum), 
+                     y=Count, 
+                     fill=Target_Population,
+                     na.rm = TRUE)) +
+          geom_bar(stat="identity",
+                   position = "stack") +
+          scale_y_continuous(limits = c(0, 150000),
+                             breaks = c(2000,
+                                        10000,
+                                        20000,
+                                        50000,
+                                        100000,
+                                        150000
+                                        )) +
+          theme_classic() +
+          labs(title = "Student Reach Profile",
+               x     = "Program Area",
+               y     = "#Students") +
+          guides(fill=FALSE) +
+          scale_x_discrete(labels=c("Prev",
+                                    "PrevYD",
+                                    "Cess",
+                                    "Int",
+                                    "IntYD",
+                                    "YD",
+                                    "PrevInt",
+                                    "PrevIntCess",
+                                    "CessYD",
+                                    "PrevIntYD",
+                                    "IntCess",
+                                    "Needs")),
+          width = 1200,
+          height = 500) 
+)
+```
+```{r Parents Crosstalk}
+ParentReach <- pivot_longer(ReachStats, 
+                       cols = c(36:54),
+                       names_to = "Target_Population",
+                       values_to = "Count")
+
+ParentReach <- ParentReach[which(ParentReach$ProgramArea=="Family"),
+                           c(1,3,4,36:39, 46:48)]
+
+Family_reach <- SharedData$new(ParentReach, ~ActivityName)
+
+
+bscols(widths = c(2,10),
+      filter_select("AG",
+                    "Agency",
+                    Family_reach,
+                    ~Agency),
+       ggplotly(ggplot(data=Family_reach, 
+                 aes(x=Target_Population, 
+                     y=Count, 
+                     fill=Agency,
+                     na.rm = TRUE)) +
+          geom_bar(stat="identity",
+                   position = "stack") +
+          scale_y_continuous(limits = c(0, 100000),
+                             breaks = seq(0, 100000, 20000)) +
+          scale_x_discrete(labels=c("AA",
+                                    "Armenian",
+                                    "Asian",
+                                    "Cont",
+                                    "Fost.",
+                                    "FRPM",
+                                    "Pub.",
+                                    "Girls",
+                                    "Hisp.",
+                                    "Home.",
+                                    "LGTBQ",
+                                    "LowSes",
+                                    "Military",
+                                    "NA",
+                                    "New",
+                                    "NH/PI",
+                                    "NT",
+                                    "Parents",
+                                    "Users")) +
+          guides(fill=FALSE) +
+          theme_classic() +
+          labs(title = "Parents Reach",
+               x     = "Target Population",
+               y     = "#Participants"),
+          width = 1400,
+          height = 600) 
+
+            )
+
+
+            
+```
+```{r Parents Dattable}
+#Parents Datatable
+datatable(Family_reach, 
+            extensions="Scroller", 
+            style="bootstrap", 
+            class="compact", 
+            width=1000,
+            height = 500,
+    options=list(deferRender=TRUE, 
+                 scrollY=300, 
+                 scroller=TRUE))
+```
+```{r Staff Crosstalk }
+StaffReach <- pivot_longer(ReachStats, 
+                       cols = c(61:64),
+                       names_to = "Target_Population",
+                       values_to = "Count")
+
+StaffReach <- StaffReach[which(StaffReach$ProgramArea=="Staff"),
+                           c(1,3,4,55:63)]
+
+staff_reach <- SharedData$new(StaffReach, ~ActivityName)
+
+bscols(widths = c(2,10),
+      filter_select("AG",
+                    "Agency",
+                    staff_reach,
+                    ~Agency),
+       ggplotly(ggplot(data=staff_reach, 
+                 aes(x=Target_Population, 
+                     y=Count, 
+                     fill=Agency,
+                     na.rm = TRUE)) +
+       geom_bar(stat="identity",
+                position = "stack") +
+                   scale_y_continuous(limits = c(0, 40000),
+                          breaks = seq(0, 40000, 5000)) +
+       scale_x_discrete(labels=c("Non-TUPE Certified",
+                                 "Non-TUPE Classified",
+                                 "TUPE Certified",
+                                 "TUPE Classified")) +
+          guides(fill=FALSE) +
+          theme_classic() +
+          labs(title = "Staff Reach",
+               x     = "Target Population",
+               y     = "#Participants"),
+          width = 1000,
+          height = 600) 
+
+
+          
+)
+
+
+
+#Parents Datatable
+datatable(staff_reach, 
+            extensions="Scroller", 
+            style="bootstrap", 
+            class="compact", 
+            width=1000,
+            height = 500,
+    options=list(deferRender=TRUE, 
+                 scrollY=300, 
+                 scroller=TRUE))
+
+
+
+
+
+
+```
+```{r Evaluation Plots}
+#Upload the Rubric
+
+include_graphics(path = "/Users/ScottDonaldson/Desktop/UCSD/TUPE/Evaluation/Dashboard/TUPEDashboards/FIles/Rubric.pdf")
+
+
+#Bar Chart of QI Scores
+attach(Master)
+ggplotly(ggplot(Master,
+       aes(x=Agency,
+           y=QIScore,
+           fill=County)) + 
+       geom_col() +
+       theme_classic() +
+       theme(axis.ticks = element_blank(), axis.text.x = element_blank())
+       
+)
+
+#Pie Chart with Reporting Frequency 
+Reporting <- plot_ly(Master, 
+               labels = ~ReportingFrequency,
+               type   = 'pie')
+Reporting <- Reporting  %>% layout(title = 'Evaluation Reporting Frequency')
+
+Reporting
+
+#Pie Chart with External Evaluators
+External <- plot_ly(Master, 
+               labels = ~ExternalEvaluator,
+               type   = 'pie')
+External  <- External   %>% layout(title = 'External Evaluator')
+
+External
+                       
+
+#Data Sources
+
+                 
+
+
+```
+```{r Data Methods Crosstalk}
+attach(Datasources)
+
+DS <- pivot_longer(Datasources, 
+                       cols = c(2:27),
+                       names_to = "DataSource",
+                       values_to = "Count")
+
+DS$TOTAL.GRANTEE <- round(DS$TOTAL.GRANTEE, digits = 1)
+DS$Count <- round(DS$Count, digits = 1)
+
+
+DataSources_shared <- SharedData$new(DS, ~Grantee)
+
+bscols(ggplotly(ggplot(data=DataSources_shared, 
+                 aes(x= reorder(Grantee, -TOTAL.GRANTEE, FUN = sum), 
+                     y=Count, 
+                     fill=DataSource,
+                     na.rm = TRUE)) +
+       geom_bar(stat="identity",
+                position = "stack") +
+                   scale_y_continuous(limits = c(0, 10),
+                          breaks = c(0, 
+                                     2,
+                                     4,
+                                     6,
+                                     8,
+                                     10)) +
+       scale_x_discrete(labels=c()) +
+          guides(fill=FALSE) +
+          theme_classic() +
+          labs(x     = "Agency",
+               y     = "#Methods"),
+          width = 1000,
+          height = 600)
+)
+```
+```{r Data Methods Table}
+datatable(Datasources, 
+            extensions="Scroller", 
+            style="bootstrap", 
+            class="compact", 
+            width=1000,
+            height = 500,
+            options=list(deferRender=TRUE, 
+                 scrollY=300, 
+                 scroller=TRUE)
+    )
+    
+```
+```{r Format Table}
+
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
