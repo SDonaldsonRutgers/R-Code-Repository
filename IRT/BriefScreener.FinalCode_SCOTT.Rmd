@@ -1,0 +1,694 @@
+---
+title: "Brief Measure of Problematic Smartphone Use"
+output: html_document       
+---
+#Data manipulation
+```{r Load Packages and Subset}
+setwd("~/Desktop/UCSD/IRTProject")
+#Load useful packages
+library(ggplot2)
+library(mokken)
+library(KernSmoothIRT)
+library(psych)
+library(mirt)
+library(nFactors)
+library(GPArotation)
+library(jtools)
+library(RDS)
+library(haven)
+library(freqdist)
+library(REdaS)
+library(pROC)
+library(randomForest)
+library(readxl)
+library(tidyverse)
+library(survey)
+library(WeMix)
+library(effects)
+library(Hmisc)
+```
+```{r Upload CSTS Data and Subset the variables of interest}
+csts1718_cr <- read_excel("csts1718_cr.xlsm")
+CSTS1718 <- csts1718_cr[, c(2, 6, 5, 372:378, 
+                            441, 406, 11, 
+                            400, 401)]
+CSTS1718 <- rename(CSTS1718, c("Smartphone"   = "Q107",
+                               "SP_Sleep"     = "Q108",
+                               "SP_Work"      = "Q109",
+                               "SP_Soc_Awk"   = "Q110",
+                               "SP_Uncomfort" = "Q111a",
+                               "SP_Constant"  = "Q111b",
+                               "SP_Parent"    = "Q111c",
+                               "Weight"       = "WGT1718_cr",
+                               "Gender"       = "Q132a",
+                               "Race"         = "RACE_M",
+                               "Grade"        = "Q5",
+                               "Loneliness"   = "Q126",
+                               "Depression"   = "Q127",
+                               "SCHOOLID"     = "SCHOOLID",
+                               "REGION"       = "REGION"
+                               ))
+
+
+#How many have smartphones
+freqdist(CSTS1718$Smartphone) 
+SP <- table(CSTS1718$Smartphone)
+freqCI(SP, level = 0.95)
+
+#Subset high school students with smartphones
+nomiss = CSTS1718[which(CSTS1718$Smartphone < 2 &
+                        CSTS1718$Grade > 1 &
+                        CSTS1718$SP_Sleep < 98 &
+                        CSTS1718$SP_Work < 98 &
+                        CSTS1718$SP_Soc_Awk < 98 &
+                        CSTS1718$SP_Uncomfort < 98 &
+                        CSTS1718$SP_Constant < 98 &
+                        CSTS1718$SP_Parent < 98 & 
+                        CSTS1718$Gender < 98 &
+                        CSTS1718$Loneliness < 98 &
+                        CSTS1718$Depression < 98), ]
+Final <- nomiss
+
+#Set factors and numeric variables
+Final$PSU.Score <- (Final$SP_Uncomfort + Final$SP_Constant + Final$SP_Parent)/3
+Final$Gender <- as.factor(Final$Gender)
+Final$Grade <- as.factor(Final$Grade)
+Final$Race <- as.factor(Final$Race)
+Final$Depression <- as.factor(Final$Depression)
+
+#Distribution of PSU Scale
+describe(Final$PSU.Score)
+hist(Final$PSU.Score)
+```
+#Demographic Section
+```{r Table 1 - Demographic Section}
+#Students who own a smartphone
+Smart.Demos <- CSTS1718[which(CSTS1718$Smartphone < 2 &
+                        CSTS1718$Grade > 1), ]
+#Gender
+freqdist::freqdist(Smart.Demos$Gender)
+freqCI(Smart.Demos$Gender)
+
+#Race
+freqdist::freqdist(Smart.Demos$Race)
+freqCI(Smart.Demos$Race)
+
+#Grade
+freqdist::freqdist(Smart.Demos$Grade)
+freqCI(Smart.Demos$Grade)
+
+
+####Students with no smartphones
+No.Smart = CSTS1718[which(CSTS1718$Grade > 1 &
+                    CSTS1718$Smartphone == 2), ]
+
+#Gender
+freqdist::freqdist(No.Smart$Gender)
+freqCI(No.Smart$Gender)
+
+#Race
+freqdist::freqdist(No.Smart$Race)
+freqCI(No.Smart$Race)
+
+#Grade
+freqdist::freqdist(No.Smart$Grade)
+freqCI(No.Smart$Grade)
+```
+#Distribution of PSU
+```{r Figure 1}
+attach(Final)
+freqdist(Final$PSU.Score)
+Hist <- ggplot(Final, aes(Final$PSU.Score))
+Hist + 
+  geom_histogram(color = "black", binwidth = .35) + 
+  theme_classic() +
+  xlab("Problematic Smartphone Use Score") + 
+  ylab("Frequency") + 
+  ylim(0, 17000)
+
++ 
+  scale_x_continuous(breaks = c(1, 1.33, 1.66, 2, 2.33, 2.66, 3, 3.33, 3.66, 4)) 
+ 
+
+
+
+
+
+```
+#Exploratory Factor Analysis and Parametric IRT
+```{r Table 2 - EFA Unweighted}
+#EFA Procedure Unweighted
+describe(Final[5:10])
+
+parallel <- fa.parallel(Final[5:10], fm = 'minres', fa = 'fa')
+
+EFA.Final = fa(Final[5:10], nfactors = 2, rotate = "oblimin" ,cor = "poly")
+print(EFA.Final)
+EV <- eigen(cor(Final[5:10]))
+print(EV)
+```
+```{r Table 2 - Parametric Modeling}
+#Parametric Model PSU                            
+fit.mirt.PSU <-mirt(PSU, model=1, 
+                    itemtype = 'graded',
+                    #method = "MHRM",
+                    technical= list(removeEmptyRows=TRUE),
+                    SE = TRUE,
+                    survey.weights = PSU$Weight)
+coef(fit.mirt.PSU, simplify=TRUE, IRTpars=TRUE)
+ #check local dependence
+residuals(fit.mirt.PSU)
+# plot expected total score
+plot(fit.mirt.PSU, type='score')
+# plot test information function
+plot(fit.mirt.PSU, type='info', MI = 100)
+# plot test standard error across range of scores
+plot(fit.mirt.PSU, type='SE', MI = 100)
+# plot item characteristic curves
+plot(fit.mirt.PSU, type='itemscore')
+# plot option characteristic curves
+plot(fit.mirt.PSU, type='trace')
+
+#Check item fit
+item.fit.1 <- itemfit(fit.mirt.PSU)
+item.fit.1
+
+#plot empirical item plot of residuals vs predicted curve
+item.fit.psu1 <- itemfit(fit.mirt.PSU, group.bins=15,
+                      empirical.plot = 1, method = 'ML') #empirical item plot with 15 points
+item.fit.psu1
+
+item.fit.psu2 <- itemfit(fit.mirt.PSU, group.bins=15,
+                      empirical.plot = 2, method = 'ML') #empirical item plot with 15 points
+item.fit.psu2
+
+item.fit.psu3 <- itemfit(fit.mirt.PSU, group.bins=15,
+                      empirical.plot = 3, method = 'ML') #empirical item plot with 15 points
+item.fit.psu3
+```
+```{r EFA Weighted}
+## Add Survey weights to the model  
+
+EFA.Final.weighted.uni <- mirt(Final[5:10], model=1, 
+                 itemtype = "graded",
+                 survey.weights = Final$Weight,
+                 se=TRUE)
+
+EFA.Final.weighted.multi <- mirt(Final[5:10], model=2, 
+                 itemtype = "graded",
+                 survey.weights = Final$Weight,
+                 se=TRUE)
+
+#compare unidimensional and multidimensional models [two fits better than one]
+anova(EFA.Final.weighted.uni,EFA.Final.weighted.multi)
+
+#Get fit estimates
+EFA.Final.weighted.multi
+
+summary(EFA.Final.weighted.multi, rotate = "oblimin", suppress = 0.25)
+coef(EFA.Final.weighted.multi, simplify=TRUE)
+residuals(EFA.Final.weighted.multi)
+
+#The mirt model for 2 factors is fit with survey weights
+        -  #A graded response model is used for these categorical indicators
+        -  #The factor loadings and h2 are estimated as in the unweighted model
+        -  #The residuals function looks for violations of assumptions of local independence, 
+        -  #Above the upper diagonal elements represent the standardized residuals in the form of signed Cramers V coefficients. Cramer V are interpreted like correlations. These are all pretty low.
+  
+```
+```{r EFA with new Soc_AWK}
+### Rescale SocAwk item to check impact on EFA
+    #- may increase local dependence a bit but gives a better fit by AIC, BIC, and Likelihood Ratio  
+    #- SocAwk item had lower cross loading (.13 -> 0.07)
+
+### In EFA looks like SP_Soc_Awk has lowest h2 @0.268 and lowest loading on the second factor. If you push it to three factors, it jumps off factor 2 and regains h2 of .588, and 'factor' is low correlation with other 2 @.43-.47 so nonredundant. Whereas SP_Parent which also has low h2, stays with factor 1 and no new gain in h2... model fail with 3 factors out of 6 items because too few observed variables (need 3+ per factor...may want to separate the awkward item...look to mokken for guidance..
+---
+  
+final <- Final
+final[,'SP_Soc_Awk'] <- ifelse(final[,'SP_Soc_Awk'] < 4, 1, 2)
+EFA.Final.weighted.multi.recode <- mirt(final[1:6], model=2, 
+                 itemtype = "graded",
+                 survey.weights = final$Weight,
+                 se=TRUE)
+
+anova(EFA.Final.weighted.multi,EFA.Final.weighted.multi.recode)
+EFA.Final.weighted.multi.recode
+summary(EFA.Final.weighted.multi.recode)
+coef(EFA.Final.weighted.multi.recode, simplify=TRUE)
+residuals(EFA.Final.weighted.multi.recode)
+
+```
+#Non-Parametric IRT with Plots
+```{r Mokken Scaling - PSU}
+#Mokken Scaling Tools 
+##Get some reliability estimates (internal consistency) 
+PSU <- as.data.frame(Final[ ,c(8:10)]) 
+PSC <- as.data.frame(Final[ ,c(5:7)]) 
+check.reliability(PSU)
+
+##Scalability Coefficients
+coefH(PSU)
+coefH(PSC)
+
+##Check Latent Monotonicity
+monotonicity.PSU <- check.monotonicity(PSU)
+summary(monotonicity.PSU)
+plot(monotonicity.PSU)
+
+##Items placed on same scale (Automated Item Selection Procedure)
+aisp(PSU)
+```
+```{r Fit Kernal Smoothing - PSU}
+#Kern Smooth IRT - Problematic Smartphone Use
+par(ask=FALSE)
+fit.kern.PSU <-  ksIRT(responses = Final[, c(8:10)], 
+                       format = 2, 
+                       miss = 'omit', 
+                       key = c(4,4,4), 
+                       kernel = 'gaussian')
+plot(fit.kern.PSU, plottype='expected', axistype='distribution')
+plot(fit.kern.PSU, 
+     plottype='EIS', 
+     axistype="distribution")
+par(mfrow=c(1,3)) 
+plot(fit.kern.PSU, 
+     plottype='OCC', 
+     axistype="distribution",
+     ylab = "Probability of Endorsement")
+plot(fit.kern.PSU, 
+     plottype='RCC', 
+     axistype="distribution",
+     subjects = c(1,10,100,200) )
+
+```
+```{r Figure 2 - Kernal Smooth Plots}
+fit.kern.Total = ksIRT(responses = Final[, c(8:10)],
+                     format = 2, 
+                     miss = 'omit',
+                     key = c(4,4,4), 
+                     kernel = 'gaussian')
+##paste your ksIRT object here
+irt.OCC <- fit.kern.Total #paste your ksIRT object here
+
+
+#pull out variable names from IRT object 
+item.names <- tibble(irt.OCC$itemlabels) %>% 
+  rownames_to_column() %>% 
+  rename(item = 1,
+         name = 2) %>% 
+  mutate(item = as.numeric(item))
+
+#pull out 51 theta evaluation points from IRT object
+theta.points <- tibble(irt.OCC$evalpoints) %>% 
+  rownames_to_column() %>% 
+  rename(point = 1,
+         theta = 2) %>% 
+  mutate(point = as.numeric(point))
+
+#pull out option characteristics terms from IRT object
+irt.OCC.long <- as_tibble(irt.OCC$OCC) %>% 
+  rename(item = 1, #rename first 3 columns
+         option = 2, 
+         weight = 3) %>% 
+  arrange(item, option) %>% #sort the data by item then option
+  mutate(option = as.factor(option)) %>% #turn option into factor
+  pivot_longer(cols = starts_with("V"), # transpose from wide to long for all values
+               names_to = "point",
+               names_prefix = "V",
+               values_to = "occ.prob",
+               values_drop_na = TRUE) %>% 
+  mutate(point = as.numeric(point) - 3) %>% #recode eval points to numeric and set to 1:51
+  left_join(theta.points, by = "point") %>% #merge names and theta points
+  left_join(item.names, by = "item") 
+
+
+#expected item score
+irt.OCC.long <- irt.OCC.long %>% 
+  #filter(item == 1) %>% 
+  #arrange(item, point) %>% 
+  #group_by(item, option, point) %>% 
+  mutate(eis.prob = round(as.numeric(option)*occ.prob, 1),
+         theta = round(theta, 1)) %>% 
+  group_by(item, point) %>% 
+  mutate(eis.prob = sum(eis.prob)) %>% 
+  ungroup()
+
+myplots <- vector('list',irt.OCC$nitem)
+
+#print ggplots for all evalutated items 
+for (i in 1:irt.OCC$nitem) { 
+  myplots[[i]] <- print(irt.OCC.long %>%
+          filter(item == i) %>%
+          ggplot(aes(x = theta, y = occ.prob, color = option)) +
+          geom_line() +
+          scale_colour_grey(name = "Response Option:",
+                            labels = c("Strongly disagree", 
+                                       "Somewhat disagree", 
+                                       "Somewhat agree", 
+                                       "Agree", 
+                                       "Strongly agree")) +
+          scale_x_continuous(breaks = c(-3, -2, -1, 0, 1, 2, 3),
+                             sec.axis = dup_axis(breaks = irt.OCC$subjthetasummary,
+                                                 labels = c("5%", "25%", "", "75%",
+                                                            "95%"),
+                                                 name = irt.OCC$itemlabels[i],)) +
+          scale_y_continuous(breaks = c(0.0, 0.2, 0.4, 0.6, 0.8, 1.0)) +
+          labs(title = '', #paste(irt.OCC$itemlabels[i]
+               x = '',     #Theta
+               y = '') +   #Probability of Item Endorsement
+          theme_classic() +
+          theme(#legend.position = "none",
+                #axis.text.y  = element_text(angle = 90, hjust = .5, size = 10),
+                panel.border = element_rect(colour = "black", fill=NA),
+                plot.title = element_blank(),
+                axis.title.x.bottom = element_blank(),
+                axis.title.y = element_blank(),
+                axis.text.x.top = element_text(size=7),
+                axis.title.x.top = element_text(size=9),
+                #legend.box.background = element_rect(colour = "black", linetype='solid'),
+                legend.title = element_text(size=9),
+                legend.text = element_text(size=9),
+            
+                legend.spacing.x = unit(.1, 'cm')) +
+          geom_vline(xintercept=c(irt.OCC$subjthetasummary), linetype = 2,
+                    alpha=.25) +
+          guides(colour = guide_legend(override.aes = list(size=3)))
+          
+        )  
+}
+
+
+fig1.New <- ggarrange(myplots[[1]],
+                  myplots[[2]],
+                  myplots[[3]],
+                  ncol = 3, nrow = 1, common.legend = TRUE, legend = "bottom")
+
+
+fig1 <- annotate_figure(fig1.New, 
+                bottom = text_grob(expression(paste("Level of Problematic Smartphone Use (", theta, ")")), size = 10),
+                left = text_grob("Probability of Item Endorsement", rot = 90, size = 10))
+print(fig1)
+
+```
+#Regression Tables
+```{r Regression Modeling - Constrast Coding}
+##Create dummy variables for gender
+###Gender
+contrasts(Final$Gender) <- contr.treatment(3, base = 2)
+Final$Gender
+Female.Male <- c(1, 0, 0)
+Other.Male <- c(0, 0, 1)
+contrasts(Final$Gender) <- cbind(Female.Male, Other.Male)
+
+###Grade Level
+contrasts(Final$Grade) <- contr.treatment(2, base = 2)
+Final$Grade
+grady <- c(0, 1)
+contrasts(Final$Grade) <- cbind(grady)
+
+###Race
+contrasts(Final$Race) <- contr.treatment(9, base = 1)
+Final$Race
+Black.vs.White   <- c(0, 1, 0, 0, 0, 0, 0, 0, 0)
+Hisp.vs.White    <- c(0, 0, 1, 0, 0, 0, 0, 0, 0)
+As.vs.White      <- c(0, 0, 0, 1, 0, 0, 0, 0, 0)
+AlN.vs.White     <- c(0, 0, 0, 0, 1, 0, 0, 0, 0)
+PI.vs.White      <- c(0, 0, 0, 0, 0, 1, 0, 0, 0)
+Other.vs.White   <- c(0, 0, 0, 0, 0, 0, 1, 0, 0)
+MR.vs.White      <- c(0, 0, 0, 0, 0, 0, 0, 1, 0)
+Decline.vs.White <- c(0, 0, 0, 0, 0, 0, 0, 0, 1)
+contrasts(Final$Race) <- cbind(Black.vs.White, 
+                                Hisp.vs.White,
+                                As.vs.White,
+                                AlN.vs.White,
+                                PI.vs.White,
+                                Other.vs.White,
+                                MR.vs.White,
+                                Decline.vs.White)
+
+```
+```{r Design Survey Weighted Model}
+## set up survey weighted models
+#proportion of each student at each school
+#set id var
+Final$Student <- factor(seq(100000,100000+nrow(Final)-1))
+Final$SCHOOLID <- factor(Final$SCHOOLID)
+Final$W1 <- Final$Weight
+Final$W2 <- Final$REGION
+Final$SP_Soc_Awk <- factor(Final$SP_Soc_Awk)
+
+#set design object
+Final.design <- svydesign(id      = ~Student, 
+                           weights = ~Weight,
+                           strata  = ~REGION,
+                           data    = Final) 
+```
+```{r Table 3} 
+#Sleep
+fit.glm.Sleep <- svyglm(SP_Sleep ~ PSU.Score + 
+                        Gender + 
+                        Grade + 
+                        Race, 
+                        design = Final.design,
+                        na.action=na.omit)
+summary.glm(fit.glm.Sleep)
+summ(fit.glm.Sleep, confint = TRUE)
+regTermTest(fit.glm.Sleep, ~PSU.Score, method="LRT")
+fit.glm.Sleep <- allEffects(fit.glm.Sleep)
+plot(fit.glm.psc.brief.effects)
+
+#Work
+fit.glm.Work <- svyglm(SP_Work ~ PSU.Score + 
+                       Gender +
+                       Grade +
+                       Race, 
+                       design = Final.design,
+                       na.action=na.omit)
+summary.glm(fit.glm.Work)
+summ(fit.glm.Work, confint = TRUE)
+regTermTest(fit.glm.Work, ~PSU.Score, method="LRT")
+fit.glm.Work <- allEffects(fit.glm.Work)
+plot(fit.glm.Work)
+
+#Fit Loneliness
+fit.glm.loneliness <- svyglm(lonelyR ~ PSU.Score + Gender + Grade + Race, design = final2.design,na.action=na.omit)
+summary(fit.glm.loneliness)
+summ(fit.glm.loneliness, confint = TRUE)
+
+
+
+
+#Fit Depression
+fit.glm.Dep <- svyglm(Sad2 ~ PSU.Score + Gender + Grade + Race, 
+                  design = Final.design,
+                  na.action=na.omit,
+                  family = "binomial")
+summary(fit.glm.Dep)
+summ(fit.glm.Dep, confint = TRUE)
+OR.Dep <- cbind(exp(coef(fit.glm.Dep)),
+                 exp(confint(fit.glm.Dep)))
+print(OR.Dep)
+regTermTest(fit.glm.Dep, ~PSU.Score, method="LRT")
+fit.glm.Dep.effects <- allEffects(fit.glm.Dep)
+plot(fit.glm.Dep.effects)
+
+```
+#Test Information Function
+```{r Figure 3 - Test Information Function for Problematic Smartphone Use}
+str(plot(fit.mirt.PSU, type='info', MI = 100))$panel.args
+TI.PSU = (plot(fit.mirt.PSU, type='info', MI = 100))
+data.frame(TI.PSU$panel.args)
+str(plot(fit.mirt.PSU, type='SE', MI = 100))
+TI.PSU.2 = plot(fit.mirt.PSU, type='SE', MI = 100)
+data.frame(TI.PSU.2$panel.args)
+
+library(tidyverse)
+cbind(data.frame(TI.PSU$panel.args), data.frame(TI.PSU.2$panel.args))
+
+TI.PSU.Final = cbind(data.frame(TI.PSU$panel.args) %>%  rename("z" = 1, "test.info" = 2), 
+               data.frame(TI.PSU.2$panel.args) %>% select(2) %>% rename("se" = 1)) %>% 
+  print()
+
+TI.PSU.Final <- TI.PSU.Final %>% 
+  rowwise() %>% 
+  mutate(ci.low = test.info + (se * 1.96),
+         ci.high = test.info - (se * 1.96)) %>% 
+  as.data.frame() %>% 
+  print()
+
+ggplot(TI.PSU.Final, aes(x=z)) +
+  #geom_ribbon(aes(ymin=ci.low, ymax=ci.high, linetype="dotted"), colour="black", alpha = 0.2) +
+  geom_line(aes(y=se), linetype="dashed") +
+  geom_line(aes(y=test.info)) +
+  #scale_linetype_manual(values = c(3))+
+  scale_fill_manual(values = c("grey60"))+
+  scale_color_manual(values = c('black'))+
+  scale_x_continuous(breaks = seq(-5, 5, 1)) +
+  scale_y_continuous(sec.axis = sec_axis(~., name = "Standard Error")) +
+  coord_cartesian(ylim = c(0,6), xlim = c(-3.5,3.5)) +
+  theme_bw() +
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        text=element_text(family = "sans", face = "bold", size = 9),
+        panel.background = element_rect(colour = "black", fill = NA, linetype=1, size = 1)) +
+  #ggtitle("PSU and Psychosocial Test Infromation Functions") +
+  ylab("Test Information (95% CI)") +
+  xlab("Level of Problematic Smartphone Use") +
+  geom_vline(xintercept = 0, linetype="dotted", colour="black", alpha = 0.33)
+```
+
+
+
+
+
+
+
+
+
+
+#General Additive Modeling
+```{r GAM PSU}
+#item 3 not looking so good: 
+#fit gamm to check functional form:
+# same as above, but with plausible values to obtain the standard errors
+set.seed(4321)
+ThetaPV <- fscores(fit.mirt.PSU, plausible.draws=10)
+
+IG0 <- itemGAM(PSU[,1], ThetaPV) #good item
+IG1 <- itemGAM(PSU[,2], ThetaPV)
+IG2 <- itemGAM(PSU[,3], ThetaPV) #not so good item, cat 2 and 3 dampened
+
+plot(IG0)
+plot(IG1)
+plot(IG2)
+
+
+```
+```{r Collapse the Middle Category on the Parent Item}
+### Given weaker fit for parent item, fit collapsed categories for middle responses given residuals seemed highest there  
+            ####Collapsed parent item leads to improved model fit  
+            ####Collapsed parent item leads to slight imporvement in   CoefH 0.48 -> 0.52
+            ####Collasped parent item leads to improved item residual concordance with ICC
+
+PSU.2 <- PSU
+
+#collapse middle categories
+collapse_middle <- function(x) { 
+                  x[x == 1]     <- 1
+                  x[x %in% 2:3] <- 2
+                  x[x == 4]     <- 3
+                  return(x)
+}
+
+#try all items
+PSU.2 <- data.frame(sapply(PSU.2, collapse_middle))
+
+#better fit if just collapse item 3 'parent'
+PSU.2$SP_Parent <- collapse_middle(PSU.2$SP_Parent)
+
+fit.mirt.PSU.v2 <-mirt(PSU.2[1:3], model=1, 
+                    itemtype = c('graded','graded','graded'),
+                    #method = "MHRM",
+                    technical= list(removeEmptyRows=TRUE),
+                    SE = TRUE,
+                    survey.weights = PSU.2$Weight)
+coef(fit.mirt.PSU.v2, simplify=TRUE, IRTpars=TRUE)
+anova(fit.mirt.PSU, fit.mirt.PSU.v2)
+
+itemfit(fit.mirt.PSU.v2)
+itemplot(fit.mirt.PSU.v2, 3)
+
+#plot empirical item plot of residuals vs predicted curve
+item.fit.psu2.1 <- itemfit(fit.mirt.PSU.v2, group.bins=15,
+                      empirical.plot = 1, method = 'ML') #empirical item plot with 15 points
+item.fit.psu2.1
+
+item.fit.psu2.2 <- itemfit(fit.mirt.PSU.v2, group.bins=15,
+                      empirical.plot = 2, method = 'ML') #empirical item plot with 15 points
+item.fit.psu2.2
+
+item.fit.psu2.3 <- itemfit(fit.mirt.PSU.v2, group.bins=15,
+                      empirical.plot = 3, method = 'ML') #empirical item plot with 15 points
+
+item.fit.psu2.3
+
+#curve(dchisq(x, df = 7), from = 0, to = 2000)
+
+coefH(PSU[1:3], se=FALSE)
+#collapsing does improve the H a little
+coefH(PSU.2[1:3], se=FALSE)
+```
+```{r GAM PSU}
+## GAM used to evaluate item form for any deviations from monotone increases  
+
+    #No obvious shift away from assumptions. Not surprising given fully non-parametric model results
+#plot gam
+ThetaPV.2 <- fscores(fit.mirt.PSU.v2, plausible.draws=10)
+
+IG2.2 <- itemGAM(PSU.2[,3], ThetaPV.2) #not so good item, cat 2 and 3 dampened
+#plot(IG2.2)
+
+```
+```{r Person-Level Respones PSU}
+
+#Check person-level responses
+person.fit.1 <- personfit(fit.mirt.PSU.v2, stats.only = FALSE)
+person.fit.1
+hist(person.fit.1$Zh)
+
+#Get IRT Scores
+irt.score<-fscores(fit.mirt.PSU.v2, method='EAP', full.scores = FALSE)
+irt.score
+Final$irt.score<-fscores(fit.mirt.PSU.v2, method='EAP')
+
+#Plot Raw Sum with Latent Factor Score
+Final$sum.total<-apply(fit.mirt.PSU.v2@Data$data, 1, sum, na.rm=FALSE)
+
+ggplot(Final, aes(x=sum.total, y=irt.score))+
+  geom_jitter(width=0.25) +
+  geom_smooth(method='lm')+
+  scale_y_continuous('Level of Latent Trait') +
+  scale_x_continuous('Smartphone Total') +
+  theme_bw() +
+  ggtitle('Relationship Between Observed Raw Score and IRT Score')
+
+```
+
+
+
+
+
+
+
+
+
+
+
+```{r Compute Tertiles}
+quantile(Final2$PSU.Score, probs = c(.33, .66, .99))
+quantile(Final2$PSC.brief, probs = c(.33, .66, .99))
+Final2$SP_Soc_Awk <- as.numeric(as.character(Final2$SP_Soc_Awk))
+quantile(Final2$SP_Soc_Awk, probs = c(.33, .66, .99))
+quantile(Final2$lonelyR, probs = c(.33, .66, .99))
+
+
+```
+
+
+
+```{r Proportions for Total IRT Score}
+TotalScore <- Final[, c(1:3)]
+
+TotalScore <- mutate(TotalScore,
+                     Total = SP_Uncomfort + SP_Constant + SP_Parent)
+
+freqdist::freqdist(TotalScore$Total)
+
+```
+
+
+
+
+
+
