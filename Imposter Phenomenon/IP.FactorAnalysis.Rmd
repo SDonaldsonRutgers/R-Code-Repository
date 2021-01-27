@@ -1,0 +1,135 @@
+---
+title: "IP.FactorAnalysis"
+output: html_document
+---
+```{r Upload and Subset Data}
+setwd("~/Documents/CGU/ImposterPhen./Stats")
+
+#Upload the SPSS File
+library(haven)
+library(psych)
+library(GPArotation)
+library(tidyverse)
+library(ltm)
+library(nFactors)
+library(Hmisc)
+
+#Subset the Data by EvaluatorIP not Original
+IP_Evaluator_Survey <- read_sav("~/Desktop/IP_ Evaluator Survey.sav")
+View(IP_Evaluator_Survey)
+Final <- IP_Evaluator_Survey[IP_Evaluator_Survey$MeasureType==1, names(IP_Evaluator_Survey)] 
+
+#Creates a dataframe of the variables we want to FA
+data.frame(colnames(IP_Evaluator_Survey))
+Final2 <- Final[,c(5:26)]
+sum(is.na(Final2))
+Final3 <- na.omit(Final2)
+
+data.frame(colnames(Final3))
+Final4 <- Final3[, c(3:5, 8, 9:13, 15, 21:22, 16:18)]
+
+```
+
+```{r Descriptives and PA}
+
+##Descriptives for the variables
+describe(Final3)
+cor(Final3)
+
+##Horn's Parallel Analysis
+parallel <- fa.parallel(Final3, fm = 'minres', fa = 'fa')
+```
+
+```{r EFA Procedure }
+#-The PA suggests two factors
+#-Based on the research we will test a two factor, three, and four factor model.
+EFA.2 = fa(Final3, nfactors = 2, rotate = "oblimin" , cor = "poly")
+print(EFA.2)
+
+EFA.3 = fa(Final3, nfactors = 3, rotate = "oblimin" , cor = "poly")
+print(EFA.3)
+
+EFA.4 <- fa(Final3, nfactors = 4, rotate = "oblimin" , cor = "poly")
+print(EFA.4)
+
+anova(EFA.2, EFA.3)
+anova(EFA.3, EFA.4)  
+
+EFA.5.final = fa(Final4, nfactors = 3, rotate = "oblimin" , cor = "poly")
+print(EFA.5.final)
+#Residual sum of squares in better in the model with four factors than three or two factors
+
+EV <- eigen(cor(Final3)) #Eigenvalues suggest five 
+print(EV)
+ap <- parallel(subject=nrow(Final3),var=ncol(Final3), 
+  rep=100,cent=.05)
+nS <- nScree(x=EV$values, aparallel=ap$eigen$qEVpea) 
+plotnScree(nS) #Scree plot
+
+```
+
+```{r Scaling }
+data.frame(colnames(Final4))
+ten.item <- as.data.frame(Final4[, c(5:6, 7:12, 14:15)])
+cronbach.alpha(ten.item)
+
+#Create new dataset with subscales
+SCALES <- mutate(ten.item, 
+Discount = (ten.item$Discount_19 + ten.item$Discount_23 + ten.item$Luck_12 +        ten.item$Luck_13)/4,
+Luck = (ten.item$Luck_1 + ten.item$Luck_6 + ten.item$Luck_7)/3,
+Fake = (ten.item$Luck_3 + ten.item$Luck_4 + ten.item$Luck_8)/3,
+totalscore = (ten.item$Discount_19 + ten.item$Discount_23 + ten.item$Luck_12 +        ten.item$Luck_13 + ten.item$Luck_1 + ten.item$Luck_6 + ten.item$Luck_7 + ten.item$Luck_3 + ten.item$Luck_4 + ten.item$Luck_8)/10
+                  )
+head(SCALES)
+
+#Cronbachs Alpha for subscales
+data.frame(colnames(SCALES))
+
+CA.Discount <- SCALES[, c(7:10)]
+cronbach.alpha(CA.Discount)
+
+CA.Fake <- SCALES[, c(1:3)]
+cronbach.alpha(CA.Fake)
+
+CA.Luck <- SCALES[, c(4:6)]
+cronbach.alpha(CA.Luck)
+
+#Descriptive
+describe(SCALES$totalscore)
+describe(SCALES$Luck)
+describe(SCALES$Discount)
+describe(SCALES$Fake)
+
+#Correlations
+cor.data <- as.matrix(SCALES[, c(11:13)])
+rcorr(cor.data, type="pearson")
+
+##Subset for age analyses
+Age <- IP_Evaluator_Survey[IP_Evaluator_Survey$MeasureType==1, names(IP_Evaluator_Survey)] 
+data.frame(colnames(Age))
+Age2 <- Age[,c(5:26, 68, 73, 75)]
+sum(is.na(Age2))
+Age3 <- na.omit(Age2)
+sum(is.na(Age3))
+Age4 <-  mutate(Age2, 
+Discount = (Age2$Discount_19 + Age2$Discount_23 + Age2$Luck_12 +        Age2$Luck_13)/4,
+Luck = (Age2$Luck_1 + Age2$Luck_6 + Age2$Luck_7)/3,
+Fake = (Age2$Luck_3 + Age2$Luck_4 + Age2$Luck_8)/3,
+totalscore = (Age2$Discount_19 + Age2$Discount_23 + Age2$Luck_12 +        Age2$Luck_13 + Age2$Luck_1 + Age2$Luck_6 + Age2$Luck_7 + Age2$Luck_3 + Age2$Luck_4 + Age2$Luck_8)/10)
+sum(is.na(Age4))
+Age5 <- na.omit(Age4)
+sum(is.na(Age5))
+
+##Correlation with age
+as.data.frame(colnames(Age5))
+age.data <- as.matrix(Age5[, c(23, 26:29)])
+rcorr(age.data, type="pearson")
+
+#ANOVA with educational background
+Age5$Education <- as.factor(as.character(Age5$Education))
+edu.discount <- aov(Luck ~ Education, data = Age5)
+summary(edu.discount)
+TukeyHSD(edu.discount)
+
+
+```
